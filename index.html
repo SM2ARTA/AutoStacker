@@ -340,14 +340,14 @@ function gravZ(gx,gy,w,d,excl){
 function inBounds(gx,gy,w,d){
   // Fully on pallet = always OK
   if(gx>=0&&gy>=0&&gx+w<=S.palletW&&gy+d<=S.palletD) return true;
+  // Overhang only if checkbox is checked
+  if(!document.getElementById('abOverhang').checked) return false;
   // Allow overhang if ≥50% of footprint is supported (pallet or boxes below)
   const gz=gravZ(gx,gy,w,d);
   const area=w*d; let sup=0;
   for(let dy=0;dy<d;dy++) for(let dx=0;dx<w;dx++){
     const cx=gx+dx,cy=gy+dy;
-    // On pallet footprint = supported
     if(cx>=0&&cy>=0&&cx<S.palletW&&cy<S.palletD){sup++;continue;}
-    // Off pallet — check if a box below supports this cell
     if(gz>0) for(const b of S.boxes)
       if(b.gz+b.h===gz&&cx>=b.gx&&cx<b.gx+b.w&&cy>=b.gy&&cy<b.gy+b.d){sup++;break;}
   }
@@ -1010,8 +1010,9 @@ function gridPos(e){
   let bw=0,bd=0;
   if(S.mode==='place'){const t=atype();if(t){bw=tw(t);bd=td(t);}}
   else if(S.selId){const b=S.boxes.find(x=>x.id===S.selId);if(b){bw=b.w;bd=b.d;}}
-  // Allow cursor to reach overhang positions (up to 49% off edge)
-  const oh=bw?Math.floor(Math.max(bw,bd)*0.49):0;
+  // Allow cursor to reach overhang positions only when overhang is enabled
+  const ohOn=document.getElementById('abOverhang').checked;
+  const oh=ohOn&&bw?Math.floor(Math.max(bw,bd)*0.49):0;
   const maxGx=(bw?S.palletW-bw:S.palletW-1)+oh, maxGy=(bd?S.palletD-bd:S.palletD-1)+oh;
   // Smart snap: box-size multiples + pallet edges + existing box edges
   function snap(rawGx,rawGy){
@@ -1036,26 +1037,22 @@ function gridPos(e){
     // Top face
     const E=toS(bx,by,tz),F=toS(bx+bww,by,tz),G=toS(bx+bww,by+bdd,tz),H=toS(bx,by+bdd,tz);
     if(ptInQuad(sx,sy,E,F,G,H)){
-      return snap(...fromSAtZ(sx,sy,tz));
+      const[rx,ry]=fromSAtZ(sx,sy,tz); return snap(rx-bw/2,ry-bd/2);
     }
     // Left visible face (gy=by side)
     const A=toS(bx,by,bz),B=toS(bx+bww,by,bz);
     if(ptInQuad(sx,sy,A,B,F,E)){
-      return snap(...fromSAtZ(sx,sy,tz));
+      const[rx,ry]=fromSAtZ(sx,sy,tz); return snap(rx-bw/2,ry-bd/2);
     }
     // Right visible face (gx=bx+bww side)
     const C=toS(bx+bww,by+bdd,bz);
     if(ptInQuad(sx,sy,B,C,G,F)){
-      return snap(...fromSAtZ(sx,sy,tz));
+      const[rx,ry]=fromSAtZ(sx,sy,tz); return snap(rx-bw/2,ry-bd/2);
     }
   }
-  // Explicit pallet surface test
-  const PE=toS(0,0,0),PF=toS(S.palletW,0,0),PG=toS(S.palletW,S.palletD,0),PH=toS(0,S.palletD,0);
-  if(ptInQuad(sx,sy,PE,PF,PG,PH)){
-    return snap(...fromS(sx,sy));
-  }
-  // Ground plane fallback
-  return snap0(...fromS(sx,sy));
+  // Pallet surface / ground plane
+  const[rx,ry]=fromS(sx,sy);
+  return snap(rx-bw/2,ry-bd/2);
 }
 
 isoC.addEventListener('mousemove',e=>{
