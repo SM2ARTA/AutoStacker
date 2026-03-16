@@ -202,7 +202,6 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="inp-row" style="margin-bottom:6px">
         <span style="font-size:0.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--txt)">Auto Build</span>
         <div style="flex:1"></div>
-        <button class="btn btn-ghost btn-sm" id="aiOptBtn" style="padding:5px 10px;color:var(--blue);border-color:var(--blue)" title="AI finds the best quantity mix to maximize pallet utilization">&#10024; Optimize</button>
         <button class="btn btn-acc btn-sm" id="autoBuildBtn" style="padding:5px 14px">&#9889; Build</button>
       </div>
       <div class="inp-row" style="margin-bottom:4px">
@@ -538,83 +537,50 @@ function autoBuild(){
   else toast(`${total} boxes, ${peakH}" tall, ${Math.round(totalWt)}lb`);
 }
 
-// ─────────────────────────────────────────────────────
-// AI OPTIMIZER — find best qty mix to maximize utilization
-// ─────────────────────────────────────────────────────
-function aiOptimize(){
-  const maxH=parseInt(document.getElementById('abMaxH').value)||96;
+// ── AUTO FILL SINGLE TYPE — fill pallet with one type to max capacity ──
+function autoFillType(typeId){
+  const t=S.types.find(x=>x.id===typeId);
+  if(!t){toast('Type not found');return;}
+  const maxH=parseInt(document.getElementById('abMaxH').value)||86;
   const maxWt=parseFloat(document.getElementById('abMaxWt').value)||99999;
   const overhang=document.getElementById('abOverhang').checked;
-
-  // Only include types with checkbox checked
-  const selected=S.types.filter(t=>{
-    const cb=document.querySelector(`[data-sel="${t.id}"]`);
-    return cb&&cb.checked;
-  });
-  if(!selected.length){toast('Select types to include (checkboxes)');return;}
-
-  // For each type, compute best layer layout and per-layer stats
-  const candidates=[];
-  for(const t of selected){
-    const dims=[t.w,t.d,t.h], maxOrient=t.flat?2:6, seen=new Set();
-    let best=null;
-    for(let oi=0;oi<maxOrient;oi++){
-      const p=_PERMS[oi];
-      const fw=dims[p[0]],fd=dims[p[1]],fh=dims[p[2]];
-      const key=fw+','+fd+','+fh;
-      if(seen.has(key)) continue; seen.add(key);
-      if(fh>maxH) continue;
-      const layout=_abLayouts(fw,fd,overhang);
-      if(!layout) continue;
-      const perLayer=layout.length;
-      if(!best||perLayer>best.perLayer||(perLayer===best.perLayer&&fh<best.fh))
-        best={perLayer,fh,layout,fw,fd};
-    }
-    if(best){
-      const layerWt=(t.weight||0)*best.perLayer;
-      const eff=best.perLayer/best.fh; // boxes per inch — efficiency score
-      candidates.push({t,perLayer:best.perLayer,fh:best.fh,layerWt,eff});
-    }
+  const interlock=document.getElementById('abInterlock').checked;
+  const dims=[t.w,t.d,t.h], maxOrient=t.flat?2:6, seen=new Set();
+  let bestOri=null;
+  for(let oi=0;oi<maxOrient;oi++){
+    const p=_PERMS[oi];
+    const fw=dims[p[0]],fd=dims[p[1]],fh=dims[p[2]];
+    const key=fw+','+fd+','+fh;
+    if(seen.has(key))continue;seen.add(key);
+    if(fh>maxH)continue;
+    const layout=_abLayouts(fw,fd,overhang);
+    if(!layout)continue;
+    if(!bestOri||layout.length>bestOri.layout.length||(layout.length===bestOri.layout.length&&fh<bestOri.fh))
+      bestOri={fw,fd,fh,layout};
   }
-
-  const skipped=selected.filter(t=>!candidates.find(c=>c.t.id===t.id));
-  if(skipped.length) toast(`Skipped (too large for pallet): ${skipped.map(t=>t.sku||t.name).join(', ')}`);
-  if(!candidates.length){toast('No selected types fit on pallet');return;}
-
-  // Find max N where N units of EACH selected type fit within height + weight
-  // For N units of type i: needs ceil(N/perLayer_i) layers, height = ceil(N/perLayer_i) * fh_i
-  let bestN=0;
-  for(let n=1;n<=5000;n++){
-    let totalH=0,totalW=0;
-    for(const c of candidates){
-      totalH+=Math.ceil(n/c.perLayer)*c.fh;
-      totalW+=n*(c.t.weight||0);
+  if(!bestOri){toast(`${t.sku||t.name}: too large for pallet`);return;}
+  const altLayout=(interlock&&bestOri.fw!==bestOri.fd)?_abLayouts(bestOri.fd,bestOri.fw,overhang):null;
+  // Fill layers until max height/weight
+  saveHist();
+  S.boxes=[];
+  let z=0,total=0,totalWt=0,layerNum=0;
+  while(z+bestOri.fh<=maxH){
+    const layerWt=(t.weight||0)*bestOri.layout.length;
+    if(totalWt+layerWt>maxWt) break;
+    const useLayout=(altLayout&&layerNum%2===1)?altLayout:bestOri.layout;
+    for(const c of useLayout){
+      S.boxes.push({id:S.nxtId++,gx:c.gx,gy:c.gy,gz:z,
+        w:c.w,d:c.d,h:bestOri.fh,color:t.color,sku:t.sku||'',name:t.name});
+      total++;
     }
-    if(totalH>maxH||totalW>maxWt) break;
-    bestN=n;
+    totalWt+=(t.weight||0)*useLayout.length;
+    z+=bestOri.fh; layerNum++;
   }
-  if(!bestN){toast('Can\'t fit even 1 of each type');return;}
-
-  const qtys={};
-  let totalBoxes=0,totalLayers=0;
-  candidates.forEach(c=>{
-    qtys[c.t.id]=bestN;
-    totalBoxes+=bestN;
-    totalLayers+=Math.ceil(bestN/c.perLayer);
-  });
-
-  // Set qty fields
-  S.types.forEach(t=>{
-    const e=document.getElementById('abq-'+t.id);
-    if(e) e.value=qtys[t.id]||0;
-  });
-
-  // Run auto build
-  autoBuild();
-
-  const usedH=maxH-remH, usedWt=Math.round((maxWt-remWt)*10)/10;
-  const fillPct=Math.round(usedH/maxH*100);
-  toast(`Optimized: ${totalBoxes} boxes, ${totalLayers} layers, ${usedH}" tall (${fillPct}%), ${usedWt}lb`);
+  // Update qty field
+  const qe=document.getElementById('abq-'+t.id);
+  if(qe) qe.value=total;
+  render();
+  toast(`Auto-filled: ${total}× ${t.sku||t.name}, ${layerNum} layers, ${z}" tall`);
 }
 
 function dropAt(gx,gy){
@@ -907,7 +873,6 @@ function renderBTL(){
   document.getElementById('typeCnt').textContent=`(${S.types.length})`;
   el.innerHTML=S.types.map(t=>`
     <div class="bti${t.id===S.activeId?' active':''}${(t.orient||0)>0?' flipped':''}" data-id="${t.id}">
-      <input type="checkbox" data-sel="${t.id}" style="margin:0;accent-color:var(--acc);flex-shrink:0" title="Include in Optimize" onclick="event.stopPropagation()">
       <div class="bti-sw" style="background:${t.color}"></div>
       <div class="bti-info">
         <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:5px">'+t.sku+'</span>':''}${t.name}</div>
@@ -929,6 +894,7 @@ function renderBTL(){
         <span style="font-size:0.48rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase">QTY</span>
       </div>
       <div class="bti-actions" style="flex-direction:column;gap:1px">
+        <button class="bti-btn" data-autofill="${t.id}" title="Auto-fill pallet with this type" style="font-size:0.65rem;color:var(--blue)">▶</button>
         <button class="bti-btn flip-btn" data-flip="${t.id}" title="Rotate orientation">⟳</button>
         <button class="bti-btn del-btn" data-del="${t.id}" title="Delete">✕</button>
       </div>
@@ -936,7 +902,7 @@ function renderBTL(){
 
   el.querySelectorAll('.bti').forEach(el=>{
     el.addEventListener('click',e=>{
-      if(e.target.closest('[data-flip],[data-del],[data-wt],[data-flat],[data-sel]')) return;
+      if(e.target.closest('[data-flip],[data-del],[data-wt],[data-flat],[data-autofill]')) return;
       S.activeId=el.dataset.id; renderBTL(); updStats(); render();
     });
   });
@@ -962,6 +928,10 @@ function renderBTL(){
       const t=S.types.find(x=>x.id===cb.dataset.flat);
       if(t){ t.flat=cb.checked; if(cb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); }
     });
+  });
+  // Auto-fill button per type
+  el.querySelectorAll('[data-autofill]').forEach(btn=>{
+    btn.addEventListener('click',e=>{e.stopPropagation();autoFillType(btn.dataset.autofill);});
   });
 }
 
@@ -1265,17 +1235,23 @@ function gridPos(e){
     if(b.gy+b.d>S.palletD) oh=Math.max(oh,b.gy+b.d-S.palletD);
   });
   const maxGx=(bw?S.palletW-bw:S.palletW-1)+oh, maxGy=(bd?S.palletD-bd:S.palletD-1)+oh;
-  // 1-inch grid with magnetic edge snapping (snap to edges when close)
+  // Magnetic snap to edges, adjacent box faces, and pallet boundaries
   function snap(rawGx,rawGy){
-    const MAGNET=3; // snap distance in inches
-    // Default: round to nearest inch
+    const MAGNET=5; // snap distance in inches (generous for easy sticking)
     let bx=Math.round(rawGx), by=Math.round(rawGy);
-    // Collect magnetic snap candidates
+    // Snap candidates: pallet edges, box-size grid, and all placed box edges
     const xC=new Set([0]),yC=new Set([0]);
+    xC.add(S.palletW); yC.add(S.palletD);
     if(bw>0){xC.add(S.palletW-bw);for(let x=-oh;x<=S.palletW+oh;x+=bw)xC.add(x);}
     if(bd>0){yC.add(S.palletD-bd);for(let y=-oh;y<=S.palletD+oh;y+=bd)yC.add(y);}
-    S.boxes.forEach(b=>{xC.add(b.gx);xC.add(b.gx+b.w);yC.add(b.gy);yC.add(b.gy+b.d);});
-    // Snap to nearest edge only if within magnet distance
+    // Add all box edges AND "adjacent" positions (box edge minus active box size = touching placement)
+    S.boxes.forEach(b=>{
+      xC.add(b.gx); xC.add(b.gx+b.w);
+      yC.add(b.gy); yC.add(b.gy+b.d);
+      if(bw>0){xC.add(b.gx-bw); xC.add(b.gx+b.w);}
+      if(bd>0){yC.add(b.gy-bd); yC.add(b.gy+b.d);}
+    });
+    // Snap to nearest candidate within magnet range
     let bestDx=MAGNET;
     for(const x of xC){const d=Math.abs(rawGx-x);if(d<bestDx){bestDx=d;bx=x;}}
     let bestDy=MAGNET;
@@ -1352,7 +1328,6 @@ document.getElementById('addTypeBtn').addEventListener('click',()=>{
   toast(`Added: ${sku?sku+' ':''}${name}  ${w}"×${d}"×${h}"`);
 });
 document.getElementById('autoBuildBtn').addEventListener('click',autoBuild);
-document.getElementById('aiOptBtn').addEventListener('click',aiOptimize);
 document.getElementById('applyP').addEventListener('click',()=>{
   S.palletW=parseInt(document.getElementById('pw').value)||48;
   S.palletD=parseInt(document.getElementById('pd').value)||40;
