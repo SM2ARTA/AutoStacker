@@ -70,6 +70,8 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .bti-info{flex:1;min-width:0}
 .bti-name{font-size:0.74rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bti-dim{font-size:0.6rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.dim-v{cursor:pointer;padding:0 1px;border-radius:2px;transition:background .15s}.dim-v:hover{background:var(--acc);color:#fff}
+.dim-ed{width:38px;padding:0 2px;font-size:0.6rem;font-family:'JetBrains Mono',monospace;border:1px solid var(--acc);border-radius:2px;outline:none;text-align:center;background:var(--surf)}
 .bti-actions{display:flex;gap:2px;opacity:0;transition:opacity .14s;flex-shrink:0}
 .bti:hover .bti-actions,.bti.active .bti-actions{opacity:1}
 .bti-btn{background:none;border:1px solid transparent;color:var(--muted);font-size:0.8rem;cursor:pointer;padding:2px 5px;border-radius:2px;transition:all .12s;line-height:1;font-family:'Barlow',sans-serif}
@@ -204,8 +206,6 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
     <div class="sec-compact" style="background:var(--surf2)">
       <div class="inp-row" style="margin-bottom:6px">
         <span style="font-size:0.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--txt)">Auto Build</span>
-        <div style="flex:1"></div>
-        <button class="btn btn-acc btn-sm" id="autoBuildBtn" style="padding:5px 14px">&#9889; Build</button>
       </div>
       <div class="inp-row" style="margin-bottom:4px">
         <span class="inp-lbl">Max H</span>
@@ -253,14 +253,15 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
         <button class="flip-inline" id="flipBtn" title="Flip W↔D [F]">⟳</button>
       </div>
       <div class="tb-sep"></div>
-      <label style="display:flex;align-items:center;gap:5px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate layers vertically">
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate layers vertically">
         <span>↕</span>
-        <input type="range" id="explodeSlider" min="0" max="100" value="0" style="width:60px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explode=this.value/100;render()">
+        <input type="range" id="explodeSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explode=this.value/100;render()">
       </label>
-      <label style="display:flex;align-items:center;gap:5px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate boxes horizontally">
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate boxes horizontally">
         <span>↔</span>
-        <input type="range" id="explodeHSlider" min="0" max="100" value="0" style="width:60px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explodeH=this.value/100;render()">
+        <input type="range" id="explodeHSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explodeH=this.value/100;render()">
       </label>
+      <button class="btn btn-ghost btn-sm" id="explodePlayBtn" style="padding:3px 7px;font-size:0.65rem;min-width:0" title="Animate explode">▶</button>
       <div class="tb-spacer"></div>
       <kbd>F</kbd><span style="font-size:0.6rem;color:var(--muted)">rotate</span>&nbsp;
       <kbd>M</kbd><span style="font-size:0.6rem;color:var(--muted)">move</span>&nbsp;
@@ -974,7 +975,7 @@ function renderBTL(){
       <div class="bti-sw" style="background:${t.color}"><input type="color" data-clr="${t.id}" value="${t.color}" style="opacity:0;width:100%;height:100%;cursor:pointer;position:absolute;top:0;left:0" onclick="event.stopPropagation()"></div>
       <div class="bti-info">
         <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:5px">'+t.sku+'</span>':''}${t.name}</div>
-        <div class="bti-dim">${tw(t)}" × ${td(t)}" × ${th(t)}"</div>
+        <div class="bti-dim"><span class="dim-v" data-dim="${t.id}-0">${tw(t)}</span>" × <span class="dim-v" data-dim="${t.id}-1">${td(t)}</span>" × <span class="dim-v" data-dim="${t.id}-2">${th(t)}</span>"</div>
         <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
           <input type="number" class="inp" data-wt="${t.id}" value="${t.weight||0}" min="0" max="9999" step="0.1"
             style="width:42px;padding:2px 4px;font-size:0.6rem;text-align:center;font-family:'JetBrains Mono',monospace;border-color:var(--bdr);border-radius:3px"
@@ -1000,8 +1001,42 @@ function renderBTL(){
 
   el.querySelectorAll('.bti').forEach(el=>{
     el.addEventListener('click',e=>{
-      if(e.target.closest('[data-flip],[data-del],[data-wt],[data-flat],[data-autofill]')) return;
+      if(e.target.closest('[data-flip],[data-del],[data-wt],[data-flat],[data-autofill],[data-dim]')) return;
       S.activeId=el.dataset.id; renderBTL(); updStats(); render();
+    });
+  });
+  // Inline dimension editing — click span to edit W/D/H
+  el.querySelectorAll('.dim-v').forEach(sp=>{
+    sp.addEventListener('click',e=>{
+      e.stopPropagation();
+      const[tid,axis]=sp.dataset.dim.split('-');
+      const t=S.types.find(x=>x.id===tid); if(!t) return;
+      const ai=parseInt(axis); // 0=W,1=D,2=H (displayed)
+      const p=_PERMS[(t.orient||0)%6];
+      const rawIdx=p[ai]; // which raw field this display axis maps to
+      const cur=[t.w,t.d,t.h][rawIdx];
+      const inp=document.createElement('input');
+      inp.type='number'; inp.className='dim-ed'; inp.value=cur;
+      inp.min=0.5; inp.max=999; inp.step=0.01;
+      sp.replaceWith(inp); inp.focus(); inp.select();
+      const commit=()=>{
+        const v=parseFloat(inp.value);
+        if(v>0 && v!==cur){
+          if(rawIdx===0) t.w=v; else if(rawIdx===1) t.d=v; else t.h=v;
+          // Update placed boxes of this type
+          S.boxes.forEach(b=>{
+            if(b.sku===t.sku&&b.name===t.name){
+              if(rawIdx===0) b.w=tw(t); if(rawIdx===1) b.d=td(t); if(rawIdx===2) b.h=th(t);
+              // Recalculate all dims from type (orient may map differently per box)
+              b.w=tw(t); b.d=td(t); b.h=th(t);
+            }
+          });
+          render();
+        }
+        renderBTL(); updStats();
+      };
+      inp.addEventListener('blur',commit);
+      inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}if(e.key==='Escape'){inp.value=cur;inp.blur();}});
     });
   });
   el.querySelectorAll('[data-flip]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();flipType(b.dataset.flip);}));
@@ -1827,7 +1862,6 @@ document.getElementById('addTypeBtn').addEventListener('click',()=>{
   renderBTL(); updStats(); render();
   toast(`Added: ${sku?sku+' ':''}${name}  ${w}"×${d}"×${h}"`);
 });
-document.getElementById('autoBuildBtn').addEventListener('click',autoBuild);
 document.getElementById('applyP').addEventListener('click',()=>{
   S.palletW=parseInt(document.getElementById('pw').value)||48;
   S.palletD=parseInt(document.getElementById('pd').value)||40;
@@ -1865,6 +1899,32 @@ document.getElementById('rmLayerBtn').addEventListener('click',()=>{
 });
 document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; render(); toast('Cleared'); });
 document.getElementById('exportBtn').addEventListener('click',exportSVG);
+
+// Explode play/pause animation
+let _expAnim=null, _expDir=1;
+document.getElementById('explodePlayBtn').addEventListener('click',function(){
+  const btn=this;
+  if(_expAnim){cancelAnimationFrame(_expAnim);_expAnim=null;btn.textContent='▶';return;}
+  btn.textContent='⏸';
+  // Determine direction: if already exploded, animate back
+  if(S.explode>=0.95&&S.explodeH>=0.95) _expDir=-1;
+  else if(S.explode<=0.05&&S.explodeH<=0.05) _expDir=1;
+  const vSlider=document.getElementById('explodeSlider');
+  const hSlider=document.getElementById('explodeHSlider');
+  const speed=0.008; // per frame
+  function tick(){
+    S.explode=Math.max(0,Math.min(1,S.explode+speed*_expDir));
+    S.explodeH=Math.max(0,Math.min(1,S.explodeH+speed*_expDir*0.7));
+    vSlider.value=S.explode*100; hSlider.value=S.explodeH*100;
+    render();
+    if((_expDir>0&&S.explode>=1&&S.explodeH>=1)||(_expDir<0&&S.explode<=0&&S.explodeH<=0)){
+      _expDir*=-1; // reverse for next press
+      _expAnim=null; btn.textContent='▶'; return;
+    }
+    _expAnim=requestAnimationFrame(tick);
+  }
+  _expAnim=requestAnimationFrame(tick);
+});
 
 window.addEventListener('keydown',e=>{
   // If a modal is open, only handle Escape to close it
