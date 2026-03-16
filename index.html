@@ -37,6 +37,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .btn-mode{border:1px solid var(--bdr);background:var(--surf2);color:var(--muted);padding:5px 14px;font-size:0.72rem;letter-spacing:1.5px}
 .btn-mode.on-place{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
 .btn-mode.on-move{border-color:var(--blue);color:var(--blue);background:var(--blue-dim)}
+.btn-mode.on-select{border-color:#6E3FF3;color:#6E3FF3;background:rgba(110,63,243,0.08)}
 
 .main{display:flex;flex:1;overflow:hidden}
 
@@ -65,7 +66,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .bti{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;border:1px solid var(--bdr);background:var(--surf);cursor:pointer;margin-bottom:6px;transition:all .14s;position:relative;user-select:none}
 .bti:hover{border-color:var(--bdr2);background:var(--surf2)}
 .bti.active{border-color:var(--acc);background:var(--acc-dim);box-shadow:0 0 0 1px var(--acc)}
-.bti-sw{width:18px;height:18px;border-radius:4px;flex-shrink:0;border:1px solid rgba(0,0,0,0.08)}
+.bti-sw{width:18px;height:18px;border-radius:4px;flex-shrink:0;border:1px solid rgba(0,0,0,0.08);position:relative;overflow:hidden}
 .bti-info{flex:1;min-width:0}
 .bti-name{font-size:0.74rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bti-dim{font-size:0.6rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px}
@@ -80,6 +81,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .ca{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .cv-wrap{flex:1;position:relative;overflow:hidden;cursor:crosshair}
 .cv-wrap.mode-move{cursor:default}
+.cv-wrap.mode-select{cursor:pointer}
 .cv-wrap.has-selected{cursor:copy}
 #isoC{display:block;width:100%;height:100%}
 
@@ -297,6 +299,16 @@ const S={
     {id:'t4',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 1',    w:48.5,d:24.625,h:2.25, color:'#D4850A',orient:0,weight:0,flat:true},
     {id:'t5',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 2',    w:43,d:5,h:2.75,        color:'#B06E00',orient:0,weight:0,flat:true},
     {id:'t6',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 3',    w:36.25,d:24,h:10.5,    color:'#8A5500',orient:0,weight:0,flat:false},
+    {id:'t7',sku:'FNRCK-001',name:'Clothes Rack',             w:25,d:2.68,h:48.23,    color:'#7B9E3D',orient:0,weight:19.73,flat:false},
+    {id:'t8',sku:'CTBAR-003',name:'Barrier Sign',             w:12.01,d:17.13,h:14.76,color:'#C75D8A',orient:0,weight:18.74,flat:false},
+    {id:'t9',sku:'CTBAR-001',name:'Barrier w/ Belt — Ctn 1',  w:34.45,d:13.97,h:6,    color:'#9E4B7A',orient:0,weight:34.39,flat:true},
+    {id:'t10',sku:'CTBAR-001',name:'Barrier w/ Belt — Ctn 2', w:13.97,d:13.97,h:11.22,color:'#7A3660',orient:0,weight:71.43,flat:false},
+    {id:'t11',sku:'FNCHR-002',name:'Plastic Folding Chair',   w:18.11,d:10.24,h:39.37,color:'#4A8B6E',orient:0,weight:60.01,flat:false},
+    {id:'t12',sku:'FNTBL-002',name:'Table Fold Large 6ft',    w:30.63,d:2.36,h:73.23, color:'#3A7CAA',orient:0,weight:34.08,flat:false},
+    {id:'t13',sku:'FNTBL-001',name:'Table Fold Std 4ft',      w:24.6,d:2.362,h:48.82, color:'#2D6088',orient:0,weight:20.41,flat:false},
+    {id:'t14',sku:'FNCHR-004',name:'Café Chair',              w:21.26,d:25.98,h:37.2, color:'#6B4E9B',orient:0,weight:45.19,flat:false},
+    {id:'t15',sku:'FNCHR-007',name:'Media Working Chair',     w:45.87,d:35.43,h:22.83,color:'#8B5E3C',orient:0,weight:119.16,flat:false},
+    {id:'t16',sku:'FNCHR-001',name:'Task Chair w/ Arms',      w:25.79,d:12.4,h:25.79, color:'#5C8B3C',orient:0,weight:38.36,flat:false},
   ],
   activeId:'t1',
   hGx:null, hGy:null,
@@ -717,6 +729,12 @@ function drawPallet(){
     ctx.beginPath(); ctx.moveTo(...toS(0,j,0)); ctx.lineTo(...toS(W,j,0)); ctx.stroke();
     const [lx,ly]=toS(-2.5,j,0); ctx.fillText(j+'"',lx,ly);
   }
+  // Center guide crosshairs
+  ctx.strokeStyle='rgba(212,133,10,0.35)'; ctx.lineWidth=Math.max(0.6,0.8*S.zoom);
+  ctx.setLineDash([6*S.zoom,4*S.zoom]);
+  ctx.beginPath(); ctx.moveTo(...toS(W/2,0,0)); ctx.lineTo(...toS(W/2,D,0)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(...toS(0,D/2,0)); ctx.lineTo(...toS(W,D/2,0)); ctx.stroke();
+  ctx.setLineDash([]);
   // Pallet dimension callouts
   ctx.font=`bold ${Math.max(8,9*S.zoom)|0}px Barlow Condensed,sans-serif`;
   ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.textAlign='center'; ctx.textBaseline='middle';
@@ -769,7 +787,7 @@ function renderIso(){
   }
 
   sorted.forEach(b=>{
-    const sel=S.mode==='move'&&S.selId===b.id;
+    const sel=(S.mode==='move'||S.mode==='select')&&S.selId===b.id;
     drawBox(b.gx,b.gy,b.gz,b.w,b.d,b.h,b.color,sel?0.45:1.0,sel);
   });
 }
@@ -872,11 +890,24 @@ function updModeUI(){
   const ov=document.getElementById('modeOverlay');
   const ot=document.getElementById('overlayTxt');
   const hint=document.getElementById('cvHint');
+  cvWrap.classList.remove('mode-move','mode-select','has-selected');
   if(S.mode==='place'){
     mb.className='btn btn-mode on-place'; mb.textContent='✦ Place';
     ov.classList.add('hidden');
-    cvWrap.classList.remove('mode-move','has-selected');
     hint.textContent='Click to place · Right-click to remove · Scroll=zoom · MMB drag=pan';
+  } else if(S.mode==='select'){
+    mb.className='btn btn-mode on-select'; mb.textContent='◇ Select';
+    ov.classList.remove('hidden');
+    cvWrap.classList.add('mode-select');
+    if(S.selId){
+      const b=S.boxes.find(x=>x.id===S.selId);
+      const label=b?(b.sku||b.name)+` (${b.w}"×${b.d}"×${b.h}")`:'';
+      ot.textContent=`Selected: ${label} — Del to remove · ESC deselect`;
+      cvWrap.classList.add('has-selected');
+    } else {
+      ot.textContent='Select Mode — click any box · Del to remove · ESC exit';
+    }
+    hint.textContent='Click box = select · Del/Backspace = remove · M = next mode';
   } else {
     mb.className='btn btn-mode on-move'; mb.textContent='⟡ Move';
     ov.classList.remove('hidden');
@@ -886,7 +917,6 @@ function updModeUI(){
       cvWrap.classList.add('has-selected');
     } else {
       ot.textContent='Move Mode — click any box to pick it up · ESC exit';
-      cvWrap.classList.remove('has-selected');
     }
     hint.textContent='Click box = pick up · Click target = drop · Right-click = cancel';
   }
@@ -904,7 +934,7 @@ function renderBTL(){
   document.getElementById('typeCnt').textContent=`(${S.types.length})`;
   el.innerHTML=S.types.map(t=>`
     <div class="bti${t.id===S.activeId?' active':''}${(t.orient||0)>0?' flipped':''}" data-id="${t.id}">
-      <div class="bti-sw" style="background:${t.color}"></div>
+      <div class="bti-sw" style="background:${t.color}"><input type="color" data-clr="${t.id}" value="${t.color}" style="opacity:0;width:100%;height:100%;cursor:pointer;position:absolute;top:0;left:0" onclick="event.stopPropagation()"></div>
       <div class="bti-info">
         <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:5px">'+t.sku+'</span>':''}${t.name}</div>
         <div class="bti-dim">${tw(t)}" × ${td(t)}" × ${th(t)}"</div>
@@ -960,6 +990,14 @@ function renderBTL(){
       if(t){ t.flat=cb.checked; if(cb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); }
     });
   });
+  // Inline color picker
+  el.querySelectorAll('[data-clr]').forEach(inp=>{
+    inp.addEventListener('input',e=>{e.stopPropagation();
+      const t=S.types.find(x=>x.id===inp.dataset.clr);
+      if(t){ t.color=inp.value; inp.parentElement.style.background=inp.value;
+        S.boxes.forEach(b=>{if(b.sku===t.sku&&b.name===t.name) b.color=inp.value;}); render(); }
+    });
+  });
   // Auto-fill button per type
   el.querySelectorAll('[data-autofill]').forEach(btn=>{
     btn.addEventListener('click',e=>{e.stopPropagation();autoFillType(btn.dataset.autofill);});
@@ -1003,11 +1041,11 @@ function renderTopView(){
   ctx.fillStyle='#E4E6EA'; ctx.fillRect(0,0,LW,LH);
 
   const PW=S.palletW, PD=S.palletD;
-  // Compute scale to fit pallet in canvas with padding
+  // Compute scale to fit pallet in canvas with padding, apply zoom
   const pad=40;
-  const scaleX=(LW-pad*2)/PW, scaleY=(LH-pad*2)/PD;
-  const sc=Math.min(scaleX,scaleY);
-  const ox=(LW-PW*sc)/2, oy=(LH-PD*sc)/2;
+  const baseSc=Math.min((LW-pad*2)/PW,(LH-pad*2)/PD);
+  const sc=baseSc*S.zoom;
+  const ox=(LW-PW*sc)/2+S.panX, oy=(LH-PD*sc)/2+S.panY;
 
   // Draw pallet base
   ctx.fillStyle='#DDB87A'; ctx.strokeStyle='#9C7840'; ctx.lineWidth=1.5;
@@ -1023,6 +1061,13 @@ function renderTopView(){
   for(let i=0;i<=PW;i+=12){ctx.fillText(i+'"',ox+i*sc,oy-6);}
   ctx.textAlign='right'; ctx.textBaseline='middle';
   for(let j=0;j<=PD;j+=12){ctx.fillText(j+'"',ox-6,oy+j*sc);}
+
+  // Center guide crosshairs
+  ctx.strokeStyle='rgba(212,133,10,0.35)'; ctx.lineWidth=1;
+  ctx.setLineDash([6,4]);
+  ctx.beginPath(); ctx.moveTo(ox+PW/2*sc,oy); ctx.lineTo(ox+PW/2*sc,oy+PD*sc); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox,oy+PD/2*sc); ctx.lineTo(ox+PW*sc,oy+PD/2*sc); ctx.stroke();
+  ctx.setLineDash([]);
 
   // Sort boxes: lower z first (bottom layers behind)
   const sorted=[...S.boxes].sort((a,b)=>a.gz-b.gz||(a.gx+a.gy)-(b.gx+b.gy));
@@ -1244,69 +1289,151 @@ function exportSVG(){
   els.push(`<text x="${tx.toFixed(1)}" y="${(ty-10).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="12" font-weight="900" fill="#333" text-anchor="middle" letter-spacing="3">AUTOSTACKER</text>`);
   els.push(`<text x="${tx.toFixed(1)}" y="${(ty+2).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="6" fill="#999" text-anchor="middle" letter-spacing="1">PALLET: ${W}" × ${D}" · ${S.boxes.length} BOXES · ${zLevels.length} LAYERS</text>`);
 
-  // ── PACKING INSTRUCTIONS (right side) ──
-  const instrX=svgW+30;
-  let instrY=20;
+  // ── PACKING INSTRUCTIONS (right of views panel) ──
+  const _vs=2.2, _vGap=35; // must match vs/vGap used in views section
+  const viewsPanelW=W*_vs+_vGap+D*_vs+25; // top view + gap + side view width
+  const instrX=svgW+40+viewsPanelW+25;
+  let instrY=48; // align with views titleY
   const iEls=[];
-  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="900" fill="#333" letter-spacing="2">PACKING INSTRUCTIONS</text>`);
-  instrY+=16;
-  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow,sans-serif" font-size="6" fill="#999">Pallet: ${W}" × ${D}" | Max Height: ${zLevels.length>0?Math.max(...zLevels.map((z,i)=>{const bx=S.boxes.find(b=>b.gz===z);return z+(bx?bx.h:0);})):0}" | ${S.boxes.length} boxes</text>`);
-  instrY+=14;
-  iEls.push(`<line x1="${instrX}" y1="${instrY}" x2="${instrX+280}" y2="${instrY}" stroke="#ddd" stroke-width="0.5"/>`);
-  instrY+=10;
-
-  // Per-layer instructions with top-down mini-map
   const typeMap={};S.types.forEach(t=>{if(t.sku)typeMap[t.sku]=t;typeMap[t.name]=t;});
   const totalWt={val:0};
   const mapScale=0.8; // px per inch for mini top-down
+  const maxZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0);
 
+  // Helper: describe box position relative to pallet
+  function descPos(b){
+    const cx=b.gx+b.w/2, cy=b.gy+b.d/2;
+    const pcx=W/2, pcy=D/2;
+    const parts=[];
+    // X axis
+    if(Math.abs(cx-pcx)<2) parts.push('centered');
+    else{
+      if(b.gx<=0) parts.push('left edge');
+      else if(b.gx+b.w>=W) parts.push('right edge');
+      else if(cx<pcx) parts.push('left side');
+      else parts.push('right side');
+    }
+    // Y axis (only if not already "centered" covering both)
+    if(parts[0]!=='centered'){
+      if(b.gy<=0) parts.push('front');
+      else if(b.gy+b.d>=D) parts.push('back');
+    } else {
+      // centered X — check Y
+      if(Math.abs(cy-pcy)>=2){
+        if(b.gy<=0) parts.push('front');
+        else if(b.gy+b.d>=D) parts.push('back');
+        else if(cy<pcy) parts.push('toward front');
+        else parts.push('toward back');
+      }
+    }
+    // Overhang
+    const oh=[];
+    if(b.gx<0) oh.push(`${Math.abs(b.gx)}" left`);
+    if(b.gx+b.w>W) oh.push(`${(b.gx+b.w-W).toFixed(1)}" right`);
+    if(b.gy<0) oh.push(`${Math.abs(b.gy)}" front`);
+    if(b.gy+b.d>D) oh.push(`${(b.gy+b.d-D).toFixed(1)}" back`);
+    if(oh.length) parts.push('overhang '+oh.join(' & '));
+    return parts.join(', ');
+  }
+
+  // Helper: group boxes by type+orientation+position-description
+  function groupLayer(boxes){
+    const groups=[];
+    const used=new Set();
+    boxes.forEach((b,i)=>{
+      if(used.has(i)) return;
+      const pos=descPos(b);
+      // Find identical boxes (same type+dims) at similar positions
+      const matching=[b];
+      used.add(i);
+      boxes.forEach((b2,j)=>{
+        if(used.has(j)) return;
+        if(b2.sku===b.sku&&b2.name===b.name&&b2.w===b.w&&b2.d===b.d&&b2.h===b.h){
+          matching.push(b2); used.add(j);
+        }
+      });
+      // Describe combined position
+      let combinedPos;
+      if(matching.length===1) combinedPos=pos;
+      else{
+        // Check if they span the full width/depth
+        const minX=Math.min(...matching.map(b=>b.gx)), maxX=Math.max(...matching.map(b=>b.gx+b.w));
+        const minY=Math.min(...matching.map(b=>b.gy)), maxY=Math.max(...matching.map(b=>b.gy+b.d));
+        if(maxX-minX>=W*0.9) combinedPos='side by side, spanning full width';
+        else if(maxY-minY>=D*0.9) combinedPos='stacked front to back, spanning full depth';
+        else combinedPos=matching.map(bb=>descPos(bb)).filter((v,i,a)=>a.indexOf(v)===i).join(' + ');
+      }
+      groups.push({b,cnt:matching.length,pos:combinedPos});
+    });
+    return groups;
+  }
+
+  // Header — aligned with ortho views titleY
+  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="900" fill="#333" letter-spacing="2">PACKING INSTRUCTIONS</text>`);
+  instrY+=14;
+  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow,sans-serif" font-size="5.5" fill="#999">Pallet: ${W}" × ${D}" | Total height: ${maxZ}" | ${S.boxes.length} box${S.boxes.length>1?'es':''} in ${zLevels.length} layer${zLevels.length>1?'s':''}</text>`);
+  instrY+=12;
+  iEls.push(`<line x1="${instrX}" y1="${instrY}" x2="${instrX+280}" y2="${instrY}" stroke="#ddd" stroke-width="0.5"/>`);
+  instrY+=10;
+
+  // Per-layer instructions
   zLevels.forEach((z,li)=>{
     const layerBoxes2=S.boxes.filter(b=>b.gz===z);
     if(!layerBoxes2.length) return;
-    const lh=layerBoxes2[0].h;
+    const lh=Math.max(...layerBoxes2.map(b=>b.h));
 
-    // Layer header
+    // Layer label
+    const layerDesc=li===0?'Bottom':li===zLevels.length-1?'Top':'Middle';
     iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700" fill="#333" letter-spacing="1.5">LAYER ${li+1}</text>`);
-    iEls.push(`<text x="${instrX+55}" y="${instrY}" font-family="JetBrains Mono,monospace" font-size="5.5" fill="#999">z=${z}" → ${z+lh}" (h=${lh}")</text>`);
+    iEls.push(`<text x="${instrX+55}" y="${instrY}" font-family="Barlow,sans-serif" font-size="5.5" fill="#999">${layerDesc} · ${lh}" tall${z>0?' · starts at '+z+'"':''}</text>`);
     instrY+=10;
 
-    // Mini top-down map for this layer
+    // Mini top-down map
     const mapX=instrX, mapY=instrY;
     const mw=W*mapScale, md=D*mapScale;
     iEls.push(`<rect x="${mapX}" y="${mapY}" width="${mw}" height="${md}" fill="#f5f5f5" stroke="#ccc" stroke-width="0.5" rx="1"/>`);
+    // Center guides on mini-map
+    iEls.push(`<line x1="${mapX+mw/2}" y1="${mapY}" x2="${mapX+mw/2}" y2="${mapY+md}" stroke="#D4850A" stroke-width="0.3" stroke-dasharray="2,1.5" opacity="0.4"/>`);
+    iEls.push(`<line x1="${mapX}" y1="${mapY+md/2}" x2="${mapX+mw}" y2="${mapY+md/2}" stroke="#D4850A" stroke-width="0.3" stroke-dasharray="2,1.5" opacity="0.4"/>`);
     layerBoxes2.forEach(b=>{
       iEls.push(`<rect x="${(mapX+b.gx*mapScale).toFixed(1)}" y="${(mapY+b.gy*mapScale).toFixed(1)}" width="${(b.w*mapScale).toFixed(1)}" height="${(b.d*mapScale).toFixed(1)}" fill="${b.color}" fill-opacity="0.6" stroke="${b.color}" stroke-width="0.5" rx="0.5"/>`);
     });
     instrY+=md+6;
 
-    // Box list for this layer
-    const groups={};
-    layerBoxes2.forEach(b=>{const k=(b.sku||'')+b.name+b.w+'x'+b.d;if(!groups[k])groups[k]={b,cnt:0};groups[k].cnt++;});
-    Object.values(groups).forEach(g=>{
+    // Box placement instructions
+    const groups=groupLayer(layerBoxes2);
+    groups.forEach(g=>{
       const b=g.b, t=typeMap[b.sku]||typeMap[b.name];
       const wt=t?t.weight||0:0;
       totalWt.val+=wt*g.cnt;
-      iEls.push(`<text x="${instrX+4}" y="${instrY}" font-family="Barlow,sans-serif" font-size="5.5" fill="#555">• ${g.cnt}× ${b.sku?b.sku+' ':''}${b.name} (${b.w}"×${b.d}"×${b.h}")${wt?' — '+Math.round(wt*g.cnt*10)/10+'lb':''}</text>`);
-      instrY+=8;
+      const label=b.sku?(b.sku+' '+b.name):b.name;
+      const dims=`${b.w}" × ${b.d}" × ${b.h}"`;
+      const wtStr=wt?` (${Math.round(wt*g.cnt*10)/10} lb${g.cnt>1?' total':''})`:'';
+
+      iEls.push(`<text x="${instrX+4}" y="${instrY}" font-family="Barlow,sans-serif" font-size="5.5" fill="#555">Place ${g.cnt}× ${label}${wtStr}</text>`);
+      instrY+=7;
+      iEls.push(`<text x="${instrX+12}" y="${instrY}" font-family="JetBrains Mono,monospace" font-size="4.8" fill="#999">${dims} — ${g.pos}</text>`);
+      instrY+=9;
     });
-    instrY+=6;
+    instrY+=4;
   });
 
   // Total weight
   iEls.push(`<line x1="${instrX}" y1="${instrY}" x2="${instrX+280}" y2="${instrY}" stroke="#ddd" stroke-width="0.5"/>`);
   instrY+=10;
-  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700" fill="#333" letter-spacing="1">TOTAL WEIGHT: ${Math.round(totalWt.val*10)/10} lbs</text>`);
+  const wtLabel=totalWt.val>0?`Total weight: ${Math.round(totalWt.val*10)/10} lbs`:'Weight: not specified';
+  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700" fill="#333" letter-spacing="1">${wtLabel}</text>`);
   instrY+=12;
   // Overhang warnings
   const ohAny=ohLeft||ohRight||ohFront||ohBack;
   if(ohAny){
-    iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="700" fill="#C62828" letter-spacing="1">⚠ OVERHANG</text>`);
+    iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="700" fill="#C62828" letter-spacing="1">⚠ OVERHANG WARNING</text>`);
     instrY+=9;
     const ohParts=[];
-    if(ohLeft) ohParts.push(`Left: ${ohLeft.toFixed(1)}"`);
-    if(ohRight) ohParts.push(`Right: ${ohRight.toFixed(1)}"`);
-    if(ohFront) ohParts.push(`Front: ${ohFront.toFixed(1)}"`);
-    if(ohBack) ohParts.push(`Back: ${ohBack.toFixed(1)}"`);
+    if(ohLeft) ohParts.push(`${ohLeft.toFixed(1)}" past left edge`);
+    if(ohRight) ohParts.push(`${ohRight.toFixed(1)}" past right edge`);
+    if(ohFront) ohParts.push(`${ohFront.toFixed(1)}" past front edge`);
+    if(ohBack) ohParts.push(`${ohBack.toFixed(1)}" past back edge`);
     iEls.push(`<text x="${instrX+4}" y="${instrY}" font-family="Barlow,sans-serif" font-size="5.5" fill="#C62828">${ohParts.join(' · ')}</text>`);
     instrY+=10;
   }
@@ -1315,8 +1442,147 @@ function exportSVG(){
   // Copyright
   iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow,sans-serif" font-size="4.5" fill="#aaa">©2026 Vladislav Abramov · SM²ARTA™</text>`);
 
-  const totalW=instrX+300;
-  const totalH=Math.max(svgH,instrY+20);
+  // ── ORTHOGRAPHIC VIEWS + FINAL 3D (right of exploded, 2×2 blueprint grid) ──
+  // Layout:  TOP VIEW      | RIGHT SIDE
+  //          FRONT VIEW    | FINAL 3D RESULT
+  const vs=2.2; // px per inch for 2D views (larger for readability)
+  const vGap=35; // gap between columns/rows
+  const palletH=3; // pallet visual height in inches
+  const realMaxZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0);
+  const vpX=svgW+40; // views panel X start
+  const dimLabelH=16; // space for dimension labels below views
+
+  // Computed sizes
+  const topViewW=W*vs, topViewD=D*vs;
+  const sideViewW=D*vs;
+  const elevViewH=(realMaxZ+palletH)*vs;
+  const c2X=vpX+topViewW+vGap; // column 2 X
+
+  // ── ROW 1: titles on shared baseline, views top-aligned ──
+  const titleY=48; // shared title baseline (aligned with instructions header)
+  const viewY=titleY+14; // all views start here
+
+  // Helper: draw 2D box rectangles for orthographic views
+  function drawOrthoBoxes(bx,baseY,mapFn){
+    [...S.boxes].sort((a,b)=>(a.gz-b.gz)||(a.gx+a.gy)-(b.gx+b.gy)).forEach(b=>{
+      const r=mapFn(b);
+      els.push(`<rect x="${(bx+r.x).toFixed(1)}" y="${(baseY+r.y).toFixed(1)}" width="${r.w.toFixed(1)}" height="${r.h.toFixed(1)}" fill="${b.color}" fill-opacity="${r.a||0.65}" stroke="${b.color}" stroke-width="0.4" rx="0.3"/>`);
+    });
+  }
+
+  // ── TOP VIEW (row 1, col 1) ──
+  els.push(`<text x="${vpX}" y="${titleY}" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="700" fill="#555" letter-spacing="1.5">TOP VIEW</text>`);
+  els.push(`<rect x="${vpX}" y="${viewY}" width="${topViewW}" height="${topViewD}" fill="#DDB87A" stroke="#9C7840" stroke-width="0.8" rx="1"/>`);
+  els.push(`<line x1="${vpX+topViewW/2}" y1="${viewY}" x2="${vpX+topViewW/2}" y2="${viewY+topViewD}" stroke="#D4850A" stroke-width="0.4" stroke-dasharray="3,2" opacity="0.35"/>`);
+  els.push(`<line x1="${vpX}" y1="${viewY+topViewD/2}" x2="${vpX+topViewW}" y2="${viewY+topViewD/2}" stroke="#D4850A" stroke-width="0.4" stroke-dasharray="3,2" opacity="0.35"/>`);
+  for(let i=12;i<W;i+=12) els.push(`<line x1="${vpX+i*vs}" y1="${viewY}" x2="${vpX+i*vs}" y2="${viewY+topViewD}" stroke="rgba(0,0,0,0.06)" stroke-width="0.3"/>`);
+  for(let j=12;j<D;j+=12) els.push(`<line x1="${vpX}" y1="${viewY+j*vs}" x2="${vpX+topViewW}" y2="${viewY+j*vs}" stroke="rgba(0,0,0,0.06)" stroke-width="0.3"/>`);
+  drawOrthoBoxes(vpX,viewY,b=>({x:b.gx*vs,y:b.gy*vs,w:b.w*vs,h:b.d*vs,a:0.7}));
+  // Labels on top view boxes
+  [...S.boxes].sort((a,b)=>a.gz-b.gz).forEach(b=>{
+    const x=vpX+b.gx*vs, y=viewY+b.gy*vs, w=b.w*vs, d=b.d*vs;
+    if(w>18&&d>9) els.push(`<text x="${(x+w/2).toFixed(1)}" y="${(y+d/2).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="4.5" font-weight="600" fill="rgba(0,0,0,0.45)" text-anchor="middle" dominant-baseline="middle">${b.sku||b.name||''}</text>`);
+  });
+  // Dimension labels
+  els.push(`<text x="${vpX+topViewW/2}" y="${viewY+topViewD+10}" font-family="JetBrains Mono,monospace" font-size="5" fill="#999" text-anchor="middle">${W}"</text>`);
+  els.push(`<text x="${vpX-6}" y="${viewY+topViewD/2}" font-family="JetBrains Mono,monospace" font-size="5" fill="#999" text-anchor="middle" transform="rotate(-90,${vpX-6},${viewY+topViewD/2})">${D}"</text>`);
+
+  // ── RIGHT SIDE VIEW (row 1, col 2) — top-aligned with top view ──
+  els.push(`<text x="${c2X}" y="${titleY}" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="700" fill="#555" letter-spacing="1.5">RIGHT SIDE</text>`);
+  const svBase=viewY+elevViewH;
+  els.push(`<line x1="${c2X-3}" y1="${svBase}" x2="${c2X+sideViewW+3}" y2="${svBase}" stroke="#999" stroke-width="0.4"/>`);
+  els.push(`<rect x="${c2X}" y="${svBase-palletH*vs}" width="${sideViewW}" height="${palletH*vs}" fill="#DDB87A" stroke="#9C7840" stroke-width="0.5" rx="0.4"/>`);
+  drawOrthoBoxes(c2X,0,b=>({x:b.gy*vs,y:svBase-(b.gz+b.h+palletH)*vs,w:b.d*vs,h:b.h*vs}));
+  els.push(`<line x1="${c2X+sideViewW/2}" y1="${viewY}" x2="${c2X+sideViewW/2}" y2="${svBase}" stroke="#D4850A" stroke-width="0.4" stroke-dasharray="3,2" opacity="0.35"/>`);
+  els.push(`<text x="${c2X+sideViewW/2}" y="${svBase+10}" font-family="JetBrains Mono,monospace" font-size="5" fill="#999" text-anchor="middle">${D}"</text>`);
+  els.push(`<text x="${c2X+sideViewW+8}" y="${viewY+elevViewH/2}" font-family="JetBrains Mono,monospace" font-size="5" fill="#666" text-anchor="start" dominant-baseline="middle">${realMaxZ}"</text>`);
+  for(let h=12;h<=realMaxZ;h+=12){
+    const hy=svBase-(h+palletH)*vs;
+    els.push(`<line x1="${c2X-2}" y1="${hy.toFixed(1)}" x2="${c2X}" y2="${hy.toFixed(1)}" stroke="#999" stroke-width="0.3"/>`);
+  }
+
+  // ── ROW 2 ──
+  const row1Btm=viewY+Math.max(topViewD+dimLabelH, elevViewH+dimLabelH);
+  const row2TitleY=row1Btm+vGap;
+  const row2ViewY=row2TitleY+12;
+
+  // ── FRONT VIEW (row 2, col 1) ──
+  els.push(`<text x="${vpX}" y="${row2TitleY}" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="700" fill="#555" letter-spacing="1.5">FRONT VIEW</text>`);
+  const fvBase=row2ViewY+elevViewH;
+  els.push(`<line x1="${vpX-3}" y1="${fvBase}" x2="${vpX+topViewW+3}" y2="${fvBase}" stroke="#999" stroke-width="0.4"/>`);
+  els.push(`<rect x="${vpX}" y="${fvBase-palletH*vs}" width="${topViewW}" height="${palletH*vs}" fill="#DDB87A" stroke="#9C7840" stroke-width="0.5" rx="0.4"/>`);
+  drawOrthoBoxes(vpX,0,b=>({x:b.gx*vs,y:fvBase-(b.gz+b.h+palletH)*vs,w:b.w*vs,h:b.h*vs}));
+  els.push(`<line x1="${vpX+topViewW/2}" y1="${row2ViewY}" x2="${vpX+topViewW/2}" y2="${fvBase}" stroke="#D4850A" stroke-width="0.4" stroke-dasharray="3,2" opacity="0.35"/>`);
+  els.push(`<text x="${vpX+topViewW/2}" y="${fvBase+10}" font-family="JetBrains Mono,monospace" font-size="5" fill="#999" text-anchor="middle">${W}"</text>`);
+  els.push(`<text x="${vpX+topViewW+8}" y="${row2ViewY+elevViewH/2}" font-family="JetBrains Mono,monospace" font-size="5" fill="#666" text-anchor="start" dominant-baseline="middle">${realMaxZ}"</text>`);
+  for(let h=12;h<=realMaxZ;h+=12){
+    const hy=fvBase-(h+palletH)*vs;
+    els.push(`<line x1="${vpX-2}" y1="${hy.toFixed(1)}" x2="${vpX}" y2="${hy.toFixed(1)}" stroke="#999" stroke-width="0.3"/>`);
+    els.push(`<text x="${vpX-4}" y="${(hy+1.5).toFixed(1)}" font-family="JetBrains Mono,monospace" font-size="3.5" fill="#999" text-anchor="end">${h}"</text>`);
+  }
+
+  // ── FINAL 3D RESULT (row 2, col 2) ──
+  els.push(`<text x="${c2X}" y="${row2TitleY}" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="700" fill="#555" letter-spacing="1.5">FINAL RESULT</text>`);
+  const fzScale=Math.min(0.45, sideViewW/((W+D)*5.0)); // auto-scale to fit col 2
+  const fBCW=5.0*fzScale, fBCH=2.5*fzScale, fBZH=7.0*fzScale;
+  let fOx=0, fOy=0;
+  function fToS(gx,gy,gz){ return [fOx+(gx-gy)*fBCW, fOy+(gx+gy)*fBCH-gz*fBZH]; }
+  const fPts=[];
+  fPts.push(fToS(-1,-1,-3));fPts.push(fToS(W+1,-1,-3));fPts.push(fToS(W+1,D+1,-3));fPts.push(fToS(-1,D+1,-3));
+  fPts.push(fToS(-1,-1,0));fPts.push(fToS(W+1,D+1,0));fPts.push(fToS(0,0,realMaxZ+2));fPts.push(fToS(W,D,realMaxZ+2));
+  const fMinX=Math.min(...fPts.map(p=>p[0])), fMaxX=Math.max(...fPts.map(p=>p[0]));
+  const fMinY=Math.min(...fPts.map(p=>p[1])), fMaxY=Math.max(...fPts.map(p=>p[1]));
+  const fW=fMaxX-fMinX+20, fH=fMaxY-fMinY+20;
+  // Center in col 2 cell, vertically centered in row 2 height
+  fOx=c2X+sideViewW/2-fW/2-fMinX+10;
+  fOy=row2ViewY+elevViewH/2-fH/2-fMinY+10;
+
+  function fPoly(pts,fill){
+    const d2=pts.map((p,i)=>`${i?'L':'M'}${fToS(...p).map(v=>v.toFixed(1)).join(',')}`).join('')+'Z';
+    els.push(`<path d="${d2}" fill="${fill}" stroke="rgba(0,0,0,0.2)" stroke-width="0.4"/>`);
+  }
+  fPoly([[-1,D+1,-3],[-1,-1,-3],[-1,-1,0],[-1,D+1,0]],'#C9A46E');
+  fPoly([[-1,D+1,-3],[W+1,D+1,-3],[W+1,D+1,0],[-1,D+1,0]],'#A8834A');
+  fPoly([[-1,-1,-3],[W+1,-1,-3],[W+1,-1,0],[-1,-1,0]],'#B89258');
+  fPoly([[W+1,-1,-3],[W+1,D+1,-3],[W+1,D+1,0],[W+1,-1,0]],'#9C7840');
+  fPoly([[-1,-1,0],[W+1,-1,0],[W+1,D+1,0],[-1,D+1,0]],'#DDB87A');
+
+  const fSorted=(function(boxes){
+    const n=boxes.length;if(n<=1)return boxes.slice();
+    const fwd2=Array.from({length:n},()=>[]);const deg2=new Uint16Array(n);
+    for(let i=0;i<n;i++){
+      const a=boxes[i],axe=a.gx+a.w,aye=a.gy+a.d,aze=a.gz+a.h;
+      for(let j=i+1;j<n;j++){
+        const b=boxes[j],bxe=b.gx+b.w,bye=b.gy+b.d,bze=b.gz+b.h;
+        const ab=axe<=b.gx||aye<=b.gy||aze<=b.gz;
+        const ba=bxe<=a.gx||bye<=a.gy||bze<=a.gz;
+        if(ab&&!ba){fwd2[i].push(j);deg2[j]++;}
+        else if(ba&&!ab){fwd2[j].push(i);deg2[i]++;}
+      }
+    }
+    const q=[],out=[];
+    for(let i=0;i<n;i++)if(!deg2[i])q.push(i);
+    while(q.length){const u=q.pop();out.push(boxes[u]);for(const v of fwd2[u])if(!--deg2[v])q.push(v);}
+    if(out.length<n){const s=new Set(out);for(const b of boxes)if(!s.has(b))out.push(b);}
+    return out;
+  })(S.boxes);
+
+  fSorted.forEach(b=>{
+    const g=GAP*fzScale, x0=b.gx+g,y0=b.gy+g,x1=b.gx+b.w-g,y1=b.gy+b.d-g;
+    const z0=b.gz,z1=b.gz+b.h-g*0.5;
+    const c=b.color;
+    fPoly([[x0,y1,z0],[x0,y0,z0],[x0,y0,z1],[x0,y1,z1]],eShade(c,.55));
+    fPoly([[x1,y1,z0],[x0,y1,z0],[x0,y1,z1],[x1,y1,z1]],eShade(c,.32));
+    fPoly([[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]],eShade(c,.68));
+    fPoly([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]],eShade(c,.40));
+    fPoly([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],eShade(c,1.14));
+  });
+
+  // ── Compute final SVG dimensions ──
+  const rightEdge=Math.max(c2X+sideViewW+20, instrX+300);
+  const bottomEdge=Math.max(svgH, fvBase+dimLabelH, fOy+fH+10, instrY+20);
+  const totalW=rightEdge+pad;
+  const totalH=bottomEdge+pad;
 
   const svg=`<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${totalW.toFixed(0)}" height="${totalH.toFixed(0)}" viewBox="0 0 ${totalW.toFixed(0)} ${totalH.toFixed(0)}">
@@ -1347,8 +1613,8 @@ function gridPos(e){
   // ── TOP-DOWN VIEW: simple 2D coordinate conversion ──
   if(S.viewMode==='top'){
     const PW=S.palletW,PD=S.palletD,pad=40;
-    const scaleX=(LW-pad*2)/PW,scaleY=(LH-pad*2)/PD,sc=Math.min(scaleX,scaleY);
-    const ox=(LW-PW*sc)/2,oy=(LH-PD*sc)/2;
+    const baseSc=Math.min((LW-pad*2)/PW,(LH-pad*2)/PD),sc=baseSc*S.zoom;
+    const ox=(LW-PW*sc)/2+S.panX,oy=(LH-PD*sc)/2+S.panY;
     const rawGx=(sx-ox)/sc-bw/2, rawGy=(sy-oy)/sc-bd/2;
     const ohOn=document.getElementById('abOverhang').checked;
     let oh=ohOn&&bw?Math.floor(Math.max(bw,bd)*0.49):0;
@@ -1356,14 +1622,27 @@ function gridPos(e){
       if(b.gx+b.w>PW)oh=Math.max(oh,b.gx+b.w-PW);if(b.gy+b.d>PD)oh=Math.max(oh,b.gy+b.d-PD);});
     const maxGx=(bw?PW-bw:PW-1)+oh,maxGy=(bd?PD-bd:PD-1)+oh;
     // Free 1-inch grid placement with magnetic snap to edges
-    const MAGNET=3;let bx=Math.round(rawGx),by=Math.round(rawGy);
+    const MAGNET=3,CENTER_MAGNET=6;let bx=Math.round(rawGx),by=Math.round(rawGy);
+    // Center snap first (wider magnet, priority)
+    const cxC=new Set([PW/2]),cyC=new Set([PD/2]);
+    if(bw>0) cxC.add(Math.round((PW-bw)/2*2)/2);
+    if(bd>0) cyC.add(Math.round((PD-bd)/2*2)/2);
+    // Center on existing boxes
+    if(bw>0||bd>0) S.boxes.forEach(b=>{
+      if(bw>0) cxC.add(b.gx+b.w/2-bw/2);
+      if(bd>0) cyC.add(b.gy+b.d/2-bd/2);
+    });
+    let dx=MAGNET,dy=MAGNET;
+    for(const x of cxC){const d=Math.abs(rawGx-x);if(d<CENTER_MAGNET){dx=d;bx=x;}}
+    for(const y of cyC){const d=Math.abs(rawGy-y);if(d<CENTER_MAGNET){dy=d;by=y;}}
+    // Regular snaps
     const xC=new Set([0,PW]),yC=new Set([0,PD]);
     if(bw>0){xC.add(PW-bw);for(let x=-oh;x<=PW+oh;x+=bw)xC.add(x);}
     if(bd>0){yC.add(PD-bd);for(let y=-oh;y<=PD+oh;y+=bd)yC.add(y);}
     S.boxes.forEach(b=>{xC.add(b.gx);xC.add(b.gx+b.w);yC.add(b.gy);yC.add(b.gy+b.d);
       if(bw>0)xC.add(b.gx-bw);if(bd>0)yC.add(b.gy-bd);});
-    let dx=MAGNET;for(const x of xC){const d=Math.abs(rawGx-x);if(d<dx){dx=d;bx=x;}}
-    let dy=MAGNET;for(const y of yC){const d=Math.abs(rawGy-y);if(d<dy){dy=d;by=y;}}
+    for(const x of xC){const d=Math.abs(rawGx-x);if(d<dx){dx=d;bx=x;}}
+    for(const y of yC){const d=Math.abs(rawGy-y);if(d<dy){dy=d;by=y;}}
     return [Math.max(-oh,Math.min(maxGx,bx)),Math.max(-oh,Math.min(maxGy,by))];
   }
 
@@ -1384,8 +1663,23 @@ function gridPos(e){
   // Magnetic snap to edges, adjacent box faces, and pallet boundaries
   function snap(rawGx,rawGy){
     const MAGNET=5; // snap distance in inches (generous for easy sticking)
+    const CENTER_MAGNET=8; // wider magnet for center alignment
     let bx=Math.round(rawGx), by=Math.round(rawGy);
-    // Snap candidates: pallet edges, box-size grid, and all placed box edges
+    // Center snap candidates (checked first with wider magnet)
+    const cxC=new Set(), cyC=new Set();
+    cxC.add(S.palletW/2); cyC.add(S.palletD/2);
+    if(bw>0) cxC.add(Math.round((S.palletW-bw)/2*2)/2); // center box on pallet
+    if(bd>0) cyC.add(Math.round((S.palletD-bd)/2*2)/2);
+    // Center on existing boxes (align new box center to existing box center)
+    if(bw>0||bd>0) S.boxes.forEach(b=>{
+      if(bw>0) cxC.add(b.gx+b.w/2-bw/2);
+      if(bd>0) cyC.add(b.gy+b.d/2-bd/2);
+    });
+    // Check center snaps first
+    let bestDx=MAGNET, bestDy=MAGNET;
+    for(const x of cxC){const d=Math.abs(rawGx-x);if(d<CENTER_MAGNET){bestDx=d;bx=x;}}
+    for(const y of cyC){const d=Math.abs(rawGy-y);if(d<CENTER_MAGNET){bestDy=d;by=y;}}
+    // Regular snap candidates: pallet edges, box-size grid, and all placed box edges
     const xC=new Set([0]),yC=new Set([0]);
     xC.add(S.palletW); yC.add(S.palletD);
     if(bw>0){xC.add(S.palletW-bw);for(let x=-oh;x<=S.palletW+oh;x+=bw)xC.add(x);}
@@ -1397,10 +1691,8 @@ function gridPos(e){
       if(bw>0){xC.add(b.gx-bw); xC.add(b.gx+b.w);}
       if(bd>0){yC.add(b.gy-bd); yC.add(b.gy+b.d);}
     });
-    // Snap to nearest candidate within magnet range
-    let bestDx=MAGNET;
+    // Regular snap (only wins if closer than center snap)
     for(const x of xC){const d=Math.abs(rawGx-x);if(d<bestDx){bestDx=d;bx=x;}}
-    let bestDy=MAGNET;
     for(const y of yC){const d=Math.abs(rawGy-y);if(d<bestDy){bestDy=d;by=y;}}
     return [Math.max(-oh,Math.min(maxGx,bx)),Math.max(-oh,Math.min(maxGy,by))];
   }
@@ -1452,11 +1744,19 @@ isoC.addEventListener('mousedown',()=>{
 isoC.addEventListener('click',e=>{
   const [gx,gy]=gridPos(e);
   if(S.mode==='place') placeBox(gx,gy);
+  else if(S.mode==='select'){
+    const hits=S.boxes.filter(b=>gx>=b.gx&&gx<b.gx+b.w&&gy>=b.gy&&gy<b.gy+b.d);
+    if(hits.length){
+      const top=hits.reduce((a,b)=>b.gz+b.h>a.gz+a.h?b:a);
+      S.selId=S.selId===top.id?null:top.id; // toggle if clicking same box
+    } else S.selId=null;
+    updModeUI(); render();
+  }
   else S.selId===null ? pickUp(gx,gy) : dropAt(gx,gy);
 });
 isoC.addEventListener('contextmenu',e=>{
   e.preventDefault();
-  if(S.mode==='move'){ S.selId=null; updModeUI(); render(); return; }
+  if(S.mode==='move'||S.mode==='select'){ S.selId=null; updModeUI(); render(); return; }
   const [gx,gy]=gridPos(e); removeTop(gx,gy);
 });
 isoC.addEventListener('wheel',e=>{
@@ -1472,7 +1772,7 @@ document.getElementById('viewBtn').addEventListener('click',()=>{
   render();
 });
 document.getElementById('modeBtn').addEventListener('click',()=>{
-  S.mode=S.mode==='place'?'move':'place'; S.selId=null; updModeUI(); render();
+  S.mode=S.mode==='place'?'select':S.mode==='select'?'move':'place'; S.selId=null; updModeUI(); render();
 });
 document.getElementById('flipBtn').addEventListener('click',()=>{ if(S.activeId) flipType(S.activeId); });
 document.getElementById('addTypeBtn').addEventListener('click',()=>{
@@ -1540,9 +1840,9 @@ window.addEventListener('keydown',e=>{
   if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
   if(e.key==='Escape'){
     if(S.selId){ S.selId=null; updModeUI(); render(); return; }
-    if(S.mode==='move'){ S.mode='place'; S.selId=null; updModeUI(); render(); }
+    if(S.mode!=='place'){ S.mode='place'; S.selId=null; updModeUI(); render(); }
   }
-  if((e.key==='m'||e.key==='M')&&!e.ctrlKey&&!e.metaKey){ S.mode=S.mode==='place'?'move':'place'; S.selId=null; updModeUI(); render(); }
+  if((e.key==='m'||e.key==='M')&&!e.ctrlKey&&!e.metaKey){ S.mode=S.mode==='place'?'select':S.mode==='select'?'move':'place'; S.selId=null; updModeUI(); render(); }
   if((e.key==='f'||e.key==='F')&&!e.ctrlKey&&!e.metaKey){ if(S.activeId) flipType(S.activeId); }
   if((e.key==='t'||e.key==='T')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('viewBtn').click(); }
   if((e.key==='l'||e.key==='L')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('dupLayerBtn').click(); }
@@ -1551,7 +1851,11 @@ window.addEventListener('keydown',e=>{
   if((e.key==='e'||e.key==='E')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+1)&3; render(); toast(`View rotated ${S.viewRot*90}°`); }
   if(e.key==='Delete'||e.key==='Backspace'){
     if(!S.boxes.length) return;
-    if(S.hGx!==null) removeTop(S.hGx,S.hGy);
+    if(S.mode==='select'&&S.selId!==null){
+      const b=S.boxes.find(x=>x.id===S.selId);
+      saveHist(); S.boxes=S.boxes.filter(x=>x.id!==S.selId); S.selId=null;
+      updModeUI(); render(); toast(b?`Removed ${b.sku||b.name}`:'Removed');
+    } else if(S.hGx!==null) removeTop(S.hGx,S.hGy);
     else { saveHist(); S.boxes.pop(); render(); toast('Removed last box'); }
   }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){ e.preventDefault(); undo(); }
