@@ -333,7 +333,22 @@ function gravZ(gx,gy,w,d,excl){
   });
   return z;
 }
-function inBounds(gx,gy,w,d){ return gx>=0&&gy>=0&&gx+w<=S.palletW&&gy+d<=S.palletD; }
+function inBounds(gx,gy,w,d){
+  // Fully on pallet = always OK
+  if(gx>=0&&gy>=0&&gx+w<=S.palletW&&gy+d<=S.palletD) return true;
+  // Allow overhang if ≥50% of footprint is supported (pallet or boxes below)
+  const gz=gravZ(gx,gy,w,d);
+  const area=w*d; let sup=0;
+  for(let dy=0;dy<d;dy++) for(let dx=0;dx<w;dx++){
+    const cx=gx+dx,cy=gy+dy;
+    // On pallet footprint = supported
+    if(cx>=0&&cy>=0&&cx<S.palletW&&cy<S.palletD){sup++;continue;}
+    // Off pallet — check if a box below supports this cell
+    if(gz>0) for(const b of S.boxes)
+      if(b.gz+b.h===gz&&cx>=b.gx&&cx<b.gx+b.w&&cy>=b.gy&&cy<b.gy+b.d){sup++;break;}
+  }
+  return sup>=area*0.5;
+}
 function saveHist(){ S.past.push(JSON.stringify(S.boxes)); if(S.past.length>80) S.past.shift(); S.future=[]; updUR(); }
 function undo(){ if(!S.past.length) return; S.future.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.past.pop()); updUR(); render(); }
 function redo(){ if(!S.future.length) return; S.past.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.future.pop()); updUR(); render(); }
@@ -960,10 +975,24 @@ function gridPos(e){
   let bw=0,bd=0;
   if(S.mode==='place'){const t=atype();if(t){bw=tw(t);bd=td(t);}}
   else if(S.selId){const b=S.boxes.find(x=>x.id===S.selId);if(b){bw=b.w;bd=b.d;}}
-  const maxGx=bw?S.palletW-bw:S.palletW-1, maxGy=bd?S.palletD-bd:S.palletD-1;
-  function snap(gx,gy){
-    return [Math.max(0,Math.min(maxGx,Math.round(gx))),Math.max(0,Math.min(maxGy,Math.round(gy)))];
+  // Allow cursor to reach overhang positions (up to 49% off edge)
+  const oh=bw?Math.floor(Math.max(bw,bd)*0.49):0;
+  const maxGx=(bw?S.palletW-bw:S.palletW-1)+oh, maxGy=(bd?S.palletD-bd:S.palletD-1)+oh;
+  // Smart snap: box-size multiples + pallet edges + existing box edges
+  function snap(rawGx,rawGy){
+    const xC=new Set([0]),yC=new Set([0]);
+    // Pallet-edge-minus-box (last position that fits flush)
+    if(bw>0){xC.add(S.palletW-bw);for(let x=-oh;x<=S.palletW+oh;x+=bw)xC.add(x);}
+    if(bd>0){yC.add(S.palletD-bd);for(let y=-oh;y<=S.palletD+oh;y+=bd)yC.add(y);}
+    // Existing box edges (align to what's already placed)
+    S.boxes.forEach(b=>{xC.add(b.gx);xC.add(b.gx+b.w);yC.add(b.gy);yC.add(b.gy+b.d);});
+    let bx=Math.round(rawGx),dx=Infinity;
+    for(const x of xC){const d=Math.abs(rawGx-x);if(d<dx){dx=d;bx=x;}}
+    let by=Math.round(rawGy),dy=Infinity;
+    for(const y of yC){const d=Math.abs(rawGy-y);if(d<dy){dy=d;by=y;}}
+    return [Math.max(-oh,Math.min(maxGx,bx)),Math.max(-oh,Math.min(maxGy,by))];
   }
+
   // Sort: highest boxes first (stacking targets), then front-to-back
   const sorted=[...S.boxes].sort((a,b)=>(b.gz+b.h)-(a.gz+a.h)||(a.gx+a.gy)-(b.gx+b.gy));
   for(const box of sorted){
@@ -991,7 +1020,7 @@ function gridPos(e){
     return snap(...fromS(sx,sy));
   }
   // Ground plane fallback
-  return snap(...fromS(sx,sy));
+  return snap0(...fromS(sx,sy));
 }
 
 isoC.addEventListener('mousemove',e=>{
