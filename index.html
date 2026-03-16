@@ -199,6 +199,9 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
           <label style="font-size:0.6rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none" title="Allow boxes to overhang up to 50% off pallet edge">
             <input type="checkbox" id="abOverhang"> Overhang
           </label>
+          <label style="font-size:0.6rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none" title="Alternate layer rotation for stability">
+            <input type="checkbox" id="abInterlock" checked> Interlock
+          </label>
         </div>
         <div style="display:flex;justify-content:flex-end">
           <button class="btn btn-acc btn-sm" id="autoBuildBtn" style="flex-shrink:0">&#9889; Auto Build</button>
@@ -225,6 +228,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="stat">Boxes: <b id="sBoxes">0</b></div>
       <div class="stat">Max H: <b id="sHeight">0</b>"</div>
       <div class="stat">Fill: <b id="sFill">0</b>%</div>
+      <div class="stat">Weight: <b id="sWeight">0</b>lb</div>
       <div class="tb-sep"></div>
       <div class="active-pill" id="aPill">
         <span id="aPillTxt">Select type →</span>
@@ -424,6 +428,7 @@ function _abLayouts(bw,bd,overhang){
 function autoBuild(){
   const maxH=parseInt(document.getElementById('abMaxH').value)||96;
   const overhang=document.getElementById('abOverhang').checked;
+  const interlock=document.getElementById('abInterlock').checked;
   const items=[];
   S.types.forEach(t=>{
     const e=document.getElementById('abq-'+t.id);
@@ -434,10 +439,11 @@ function autoBuild(){
 
   // For each type, try orientations → pick best (most boxes fit within maxH)
   // Flat-only types: only orient 0,1 (W↔D swap, H stays as height)
+  // If interlock: also compute an alternate layout with swapped W↔D
   const plans=[];
   for(const item of items){
     const t=item.t, dims=[t.w,t.d,t.h], seen=new Set();
-    const maxOrient=t.flat?2:6; // flat: only perms 0,1 (W↔D swap)
+    const maxOrient=t.flat?2:6;
     let best=null;
     for(let oi=0;oi<maxOrient;oi++){
       const p=_PERMS[oi];
@@ -447,12 +453,16 @@ function autoBuild(){
       if(fh>maxH) continue;
       const layout=_abLayouts(fw,fd,overhang);
       if(!layout) continue;
+      // Alternate layout for interlocking (swap footprint W↔D)
+      const altLayout=interlock&&fw!==fd?_abLayouts(fd,fw,overhang):null;
       const perLayer=layout.length;
+      const altPer=altLayout?altLayout.length:perLayer;
+      const avgPer=altLayout?Math.min(perLayer,altPer):perLayer;
       const layersFit=Math.floor(maxH/fh);
-      const canPlace=Math.min(item.qty, layersFit*perLayer);
-      const totalH=Math.ceil(canPlace/perLayer)*fh;
+      const canPlace=Math.min(item.qty, layersFit*Math.max(perLayer,altPer));
+      const totalH=Math.ceil(canPlace/avgPer)*fh;
       if(!best||canPlace>best.canPlace||(canPlace===best.canPlace&&totalH<best.totalH))
-        best={layout,perLayer,fh,canPlace,totalH,fw,fd};
+        best={layout,altLayout,perLayer,altPer,fh,canPlace,totalH,fw,fd};
     }
     if(best) plans.push({t:item.t,qty:item.qty,...best});
     else plans.push({t:item.t,qty:item.qty,canPlace:0});
@@ -468,15 +478,17 @@ function autoBuild(){
 
   for(const plan of plans){
     if(!plan.layout){ warns.push(`${plan.t.name}: too large`);continue; }
-    let placed=0;
+    let placed=0,layerNum=0;
     while(placed<plan.qty&&z+plan.fh<=maxH){
-      for(const c of plan.layout){
+      // Alternate layout every other layer for interlocking
+      const useLayout=(plan.altLayout&&layerNum%2===1)?plan.altLayout:plan.layout;
+      for(const c of useLayout){
         if(placed>=plan.qty) break;
         S.boxes.push({id:S.nxtId++,gx:c.gx,gy:c.gy,gz:z,
           w:c.w,d:c.d,h:plan.fh,color:plan.t.color,sku:plan.t.sku||'',name:plan.t.name});
         placed++;
       }
-      z+=plan.fh;
+      z+=plan.fh; layerNum++;
     }
     total+=placed;
     if(placed<plan.qty) warns.push(`${plan.t.name}: ${placed}/${plan.qty}`);
@@ -655,17 +667,33 @@ function renderTop(){
 
   const hmap=Array.from({length:D},()=>Array(W).fill(0));
   const cmap=Array.from({length:D},()=>Array(W).fill(null));
+  const wmap=Array.from({length:D},()=>Array(W).fill(0)); // weight per cell
+  const typeMap={};S.types.forEach(t=>{if(t.sku)typeMap[t.sku]=t;typeMap[t.name]=t;});
   [...S.boxes].sort((a,b)=>(b.gz+b.h)-(a.gz+a.h)).forEach(b=>{
+    const t=typeMap[b.sku]||typeMap[b.name];
+    const bwt=(t&&t.weight)?t.weight/(b.w*b.d):0; // weight per sq inch
     for(let dy=0;dy<b.d;dy++) for(let dx=0;dx<b.w;dx++){
       const x=b.gx+dx,y=b.gy+dy;
-      if(x>=0&&x<W&&y>=0&&y<D&&b.gz+b.h>=hmap[y][x]){ hmap[y][x]=b.gz+b.h; cmap[y][x]=b.color; }
+      if(x>=0&&x<W&&y>=0&&y<D){
+        if(b.gz+b.h>=hmap[y][x]){ hmap[y][x]=b.gz+b.h; cmap[y][x]=b.color; }
+        wmap[y][x]+=bwt;
+      }
     }
   });
   const maxH=hmap.flat().reduce((a,b)=>Math.max(a,b),0);
+  const maxWt=wmap.flat().reduce((a,b)=>Math.max(a,b),0);
 
   for(let y=0;y<D;y++) for(let x=0;x<W;x++){
     const h=hmap[y][x],c=cmap[y][x];
-    if(c){ tCtx.fillStyle=c; tCtx.globalAlpha=0.32+(maxH>0?h/maxH:0)*0.58; tCtx.fillRect(x*cs,y*cs,cs,cs); tCtx.globalAlpha=1; }
+    if(c){
+      tCtx.fillStyle=c; tCtx.globalAlpha=0.32+(maxH>0?h/maxH:0)*0.58; tCtx.fillRect(x*cs,y*cs,cs,cs);
+      // Weight distribution overlay: red tint for heavier areas
+      if(maxWt>0&&wmap[y][x]>0){
+        const wi=wmap[y][x]/maxWt;
+        tCtx.fillStyle=`rgba(200,40,40,${wi*0.35})`; tCtx.fillRect(x*cs,y*cs,cs,cs);
+      }
+      tCtx.globalAlpha=1;
+    }
     tCtx.strokeStyle=h>0?'rgba(0,0,0,0.2)':'rgba(0,0,0,0.06)'; tCtx.lineWidth=0.5;
     tCtx.strokeRect(x*cs+.25,y*cs+.25,cs-.5,cs-.5);
     if(h>0&&cs>=5){ tCtx.fillStyle='rgba(0,0,0,0.55)'; tCtx.font=`${Math.max(4,cs*.62)|0}px JetBrains Mono,monospace`; tCtx.textAlign='center'; tCtx.textBaseline='middle'; tCtx.fillText(h,x*cs+cs/2,y*cs+cs/2); }
@@ -682,8 +710,10 @@ function renderTop(){
     }
   }
 
-  document.getElementById('legend').innerHTML=`<div class="legend-title">Height (inches)</div>
-    <div style="font-size:0.62rem;color:var(--muted);line-height:1.7">Numbers = stacked<br>height at cell.<br><span style="color:var(--acc2);font-family:'JetBrains Mono',monospace">Max: ${maxH}"</span></div>`;
+  document.getElementById('legend').innerHTML=`<div class="legend-title">Height · Weight Map</div>
+    <div style="font-size:0.62rem;color:var(--muted);line-height:1.7">Numbers = height<br>
+    <span style="color:var(--acc);font-family:'JetBrains Mono',monospace">Max: ${maxH}"</span><br>
+    <span style="color:#C82828">Red tint</span> = weight density</div>`;
 }
 
 // ─────────────────────────────────────────────────────
@@ -695,6 +725,11 @@ function updStats(){
   const occ=new Set();
   S.boxes.forEach(b=>{for(let dy=0;dy<b.d;dy++) for(let dx=0;dx<b.w;dx++) occ.add(`${b.gx+dx},${b.gy+dy}`);});
   document.getElementById('sFill').textContent=Math.round(occ.size/(S.palletW*S.palletD)*100);
+  // Total weight — match placed boxes to types by name/sku for weight lookup
+  const typeMap={};S.types.forEach(t=>{if(t.sku)typeMap[t.sku]=t;typeMap[t.name]=t;});
+  let totalWt=0;
+  S.boxes.forEach(b=>{const t=typeMap[b.sku]||typeMap[b.name];if(t)totalWt+=t.weight||0;});
+  document.getElementById('sWeight').textContent=Math.round(totalWt*10)/10;
   const t=atype();
   const pill=document.getElementById('aPill');
   if(t){
