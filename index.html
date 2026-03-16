@@ -244,6 +244,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="stat">Max H: <b id="sHeight">0</b>"</div>
       <div class="stat">Fill: <b id="sFill">0</b>%</div>
       <div class="stat">Weight: <b id="sWeight">0</b>lb</div>
+      <span id="sBreakdown" style="font-size:0.6rem;color:var(--muted)"></span>
       <div class="tb-sep"></div>
       <div class="active-pill" id="aPill">
         <span id="aPillTxt">Select type →</span>
@@ -716,6 +717,11 @@ function drawPallet(){
     ctx.beginPath(); ctx.moveTo(...toS(0,j,0)); ctx.lineTo(...toS(W,j,0)); ctx.stroke();
     const [lx,ly]=toS(-2.5,j,0); ctx.fillText(j+'"',lx,ly);
   }
+  // Pallet dimension callouts
+  ctx.font=`bold ${Math.max(8,9*S.zoom)|0}px Barlow Condensed,sans-serif`;
+  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  const[dx1,dy1]=toS(W/2,-4,0); ctx.fillText(W+'"',dx1,dy1);
+  const[dx2,dy2]=toS(-4,D/2,0); ctx.fillText(D+'"',dx2,dy2);
   ctx.restore();
 }
 
@@ -845,6 +851,11 @@ function updStats(){
   let totalWt=0;
   S.boxes.forEach(b=>{const t=typeMap[b.sku]||typeMap[b.name];if(t)totalWt+=t.weight||0;});
   document.getElementById('sWeight').textContent=Math.round(totalWt*10)/10;
+  // Per-type breakdown
+  const counts={};
+  S.boxes.forEach(b=>{const k=b.sku||b.name||'?';counts[k]=(counts[k]||0)+1;});
+  const bd=Object.entries(counts).map(([k,v])=>`${v}× ${k}`).join(' · ');
+  document.getElementById('sBreakdown').textContent=bd;
   const t=atype();
   const pill=document.getElementById('aPill');
   if(t){
