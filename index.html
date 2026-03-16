@@ -543,11 +543,16 @@ function aiOptimize(){
   const maxWt=parseFloat(document.getElementById('abMaxWt').value)||99999;
   const overhang=document.getElementById('abOverhang').checked;
 
-  if(!S.types.length){toast('No box types defined');return;}
+  // Only include types with checkbox checked
+  const selected=S.types.filter(t=>{
+    const cb=document.querySelector(`[data-sel="${t.id}"]`);
+    return cb&&cb.checked;
+  });
+  if(!selected.length){toast('Select types to include (checkboxes)');return;}
 
   // For each type, compute best layer layout and per-layer stats
   const candidates=[];
-  for(const t of S.types){
+  for(const t of selected){
     const dims=[t.w,t.d,t.h], maxOrient=t.flat?2:6, seen=new Set();
     let best=null;
     for(let oi=0;oi<maxOrient;oi++){
@@ -900,6 +905,7 @@ function renderBTL(){
   document.getElementById('typeCnt').textContent=`(${S.types.length})`;
   el.innerHTML=S.types.map(t=>`
     <div class="bti${t.id===S.activeId?' active':''}${(t.orient||0)>0?' flipped':''}" data-id="${t.id}">
+      <input type="checkbox" data-sel="${t.id}" checked style="margin:0;accent-color:var(--acc);flex-shrink:0" title="Include in Optimize" onclick="event.stopPropagation()">
       <div class="bti-sw" style="background:${t.color}"></div>
       <div class="bti-info">
         <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:5px">'+t.sku+'</span>':''}${t.name}</div>
@@ -928,7 +934,7 @@ function renderBTL(){
 
   el.querySelectorAll('.bti').forEach(el=>{
     el.addEventListener('click',e=>{
-      if(e.target.closest('[data-flip],[data-del],[data-wt],[data-flat]')) return;
+      if(e.target.closest('[data-flip],[data-del],[data-wt],[data-flat],[data-sel]')) return;
       S.activeId=el.dataset.id; renderBTL(); updStats(); render();
     });
   });
@@ -1111,6 +1117,29 @@ function exportSVG(){
     els.push(`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="6.5" font-weight="700" fill="#666" text-anchor="end" dominant-baseline="middle" letter-spacing="1">LAYER ${i+1}</text>`);
   });
 
+  // Overhang annotations — measure how far boxes extend beyond pallet edges
+  let ohLeft=0,ohRight=0,ohFront=0,ohBack=0;
+  S.boxes.forEach(b=>{
+    if(b.gx<0) ohLeft=Math.max(ohLeft,-b.gx);
+    if(b.gx+b.w>W) ohRight=Math.max(ohRight,b.gx+b.w-W);
+    if(b.gy<0) ohBack=Math.max(ohBack,-b.gy);
+    if(b.gy+b.d>D) ohFront=Math.max(ohFront,b.gy+b.d-D);
+  });
+  // Draw overhang dimension lines on the ground plane (z=0, no explosion offset)
+  function ohLine(x1,y1,x2,y2,label,side){
+    const p1=eToS(x1,y1,0),p2=eToS(x2,y2,0);
+    const mx=(p1[0]+p2[0])/2,my=(p1[1]+p2[1])/2;
+    els.push(`<line x1="${p1[0].toFixed(1)}" y1="${p1[1].toFixed(1)}" x2="${p2[0].toFixed(1)}" y2="${p2[1].toFixed(1)}" stroke="#C62828" stroke-width="1" stroke-dasharray="3,2"/>`);
+    // End ticks
+    els.push(`<circle cx="${p1[0].toFixed(1)}" cy="${p1[1].toFixed(1)}" r="1.5" fill="#C62828"/>`);
+    els.push(`<circle cx="${p2[0].toFixed(1)}" cy="${p2[1].toFixed(1)}" r="1.5" fill="#C62828"/>`);
+    els.push(`<text x="${mx.toFixed(1)}" y="${(my-4).toFixed(1)}" font-family="JetBrains Mono,monospace" font-size="5.5" font-weight="600" fill="#C62828" text-anchor="middle">${label}" overhang</text>`);
+  }
+  if(ohLeft>0) ohLine(-ohLeft,D/2,0,D/2,ohLeft.toFixed(1),'left');
+  if(ohRight>0) ohLine(W,D/2,W+ohRight,D/2,ohRight.toFixed(1),'right');
+  if(ohBack>0) ohLine(W/2,-ohBack,W/2,0,ohBack.toFixed(1),'back');
+  if(ohFront>0) ohLine(W/2,D,W/2,D+ohFront,ohFront.toFixed(1),'front');
+
   // Title
   const[tx,ty]=eToS(W/2,-6,maxEz+EXP_GAP);
   els.push(`<text x="${tx.toFixed(1)}" y="${(ty-10).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="12" font-weight="900" fill="#333" text-anchor="middle" letter-spacing="3">AUTOSTACKER</text>`);
@@ -1168,7 +1197,21 @@ function exportSVG(){
   iEls.push(`<line x1="${instrX}" y1="${instrY}" x2="${instrX+280}" y2="${instrY}" stroke="#ddd" stroke-width="0.5"/>`);
   instrY+=10;
   iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700" fill="#333" letter-spacing="1">TOTAL WEIGHT: ${Math.round(totalWt.val*10)/10} lbs</text>`);
-  instrY+=14;
+  instrY+=12;
+  // Overhang warnings
+  const ohAny=ohLeft||ohRight||ohFront||ohBack;
+  if(ohAny){
+    iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="700" fill="#C62828" letter-spacing="1">⚠ OVERHANG</text>`);
+    instrY+=9;
+    const ohParts=[];
+    if(ohLeft) ohParts.push(`Left: ${ohLeft.toFixed(1)}"`);
+    if(ohRight) ohParts.push(`Right: ${ohRight.toFixed(1)}"`);
+    if(ohFront) ohParts.push(`Front: ${ohFront.toFixed(1)}"`);
+    if(ohBack) ohParts.push(`Back: ${ohBack.toFixed(1)}"`);
+    iEls.push(`<text x="${instrX+4}" y="${instrY}" font-family="Barlow,sans-serif" font-size="5.5" fill="#C62828">${ohParts.join(' · ')}</text>`);
+    instrY+=10;
+  }
+  instrY+=4;
 
   // Copyright
   iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow,sans-serif" font-size="4.5" fill="#aaa">©2026 Vladislav Abramov · SM²ARTA™</text>`);
