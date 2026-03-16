@@ -3,18 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pallet Stack Builder — RGS Events</title>
+<title>AutoStacker — RGS Events</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0d0e0e;--surf:#141616;--surf2:#1a1c1c;--surf3:#1f2121;
-  --bdr:#242626;--bdr2:#2c2e2e;
-  --acc:#F5A623;--acc2:#FFD166;--acc-dim:rgba(245,166,35,0.12);
-  --blue:#5B8DEF;--blue-dim:rgba(91,141,239,0.12);
-  --txt:#ddd8ce;--muted:#6a6560;
-  --red:#e05858;--green:#5CC87A;
+  --bg:#F0F1F3;--surf:#FFFFFF;--surf2:#F5F6F8;--surf3:#ECEDF0;
+  --bdr:#D8DAE0;--bdr2:#C8CAD0;
+  --acc:#D4850A;--acc2:#B06E00;--acc-dim:rgba(212,133,10,0.10);
+  --blue:#3B6FD9;--blue-dim:rgba(59,111,217,0.10);
+  --txt:#1A1D23;--muted:#6B7080;
+  --red:#C62828;--green:#2E7D32;
 }
 html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;display:flex;flex-direction:column}
@@ -27,9 +28,9 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .hdr-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}
 
 .btn{border:none;border-radius:2px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:0.78rem;letter-spacing:1.5px;text-transform:uppercase;transition:all .14s;padding:6px 13px;display:inline-flex;align-items:center;gap:5px}
-.btn-acc{background:var(--acc);color:#111}.btn-acc:hover{background:#ffb833}
+.btn-acc{background:var(--acc);color:#fff}.btn-acc:hover{background:#B87008}
 .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--bdr)}.btn-ghost:hover{color:var(--txt);border-color:var(--bdr2)}
-.btn-danger{background:transparent;color:var(--red);border:1px solid #331515}.btn-danger:hover{background:#1e0c0c}
+.btn-danger{background:transparent;color:var(--red);border:1px solid #F5D0D0}.btn-danger:hover{background:#FEF0F0}
 .btn-sm{padding:5px 10px;font-size:0.72rem}
 .btn-full{width:100%;justify-content:center}
 .btn:disabled{opacity:.35;cursor:not-allowed}
@@ -53,7 +54,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .inp-x{color:var(--muted);font-size:0.8rem;flex-shrink:0}
 
 .btl{flex:1;overflow-y:auto;padding:8px}
-.btl::-webkit-scrollbar{width:3px}.btl::-webkit-scrollbar-track{background:transparent}.btl::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px}
+.btl::-webkit-scrollbar{width:3px}.btl::-webkit-scrollbar-track{background:transparent}.btl::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
 .bti{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:2px;border:1px solid var(--bdr);background:var(--surf2);cursor:pointer;margin-bottom:5px;transition:all .14s;position:relative;user-select:none}
 .bti:hover{border-color:var(--bdr2);background:var(--surf3)}
 .bti.active{border-color:var(--acc);background:var(--acc-dim)}
@@ -65,9 +66,9 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .bti:hover .bti-actions,.bti.active .bti-actions{opacity:1}
 .bti-btn{background:none;border:1px solid transparent;color:var(--muted);font-size:0.8rem;cursor:pointer;padding:2px 5px;border-radius:2px;transition:all .12s;line-height:1;font-family:'Barlow',sans-serif}
 .bti-btn:hover{border-color:var(--bdr);color:var(--txt)}
-.bti-btn.flip-btn:hover{color:var(--acc2);border-color:rgba(232,196,84,0.3)}
-.bti-btn.del-btn:hover{color:var(--red);border-color:rgba(224,88,88,0.3)}
-.bti.flipped .bti-dim::after{content:' ⟳';color:var(--acc2)}
+.bti-btn.flip-btn:hover{color:var(--acc);border-color:rgba(212,133,10,0.3)}
+.bti-btn.del-btn:hover{color:var(--red);border-color:rgba(198,40,40,0.25)}
+.bti.flipped .bti-dim::after{content:' ⟳';color:var(--acc)}
 
 .ca{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .cv-wrap{flex:1;position:relative;overflow:hidden;cursor:crosshair}
@@ -75,13 +76,13 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .cv-wrap.has-selected{cursor:copy}
 #isoC{display:block;width:100%;height:100%}
 
-.mode-overlay{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:rgba(10,11,11,0.88);border:1px solid var(--blue);border-radius:20px;padding:5px 16px;pointer-events:none;white-space:nowrap;backdrop-filter:blur(4px);transition:opacity .2s}
+.mode-overlay{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.92);border:1px solid var(--blue);border-radius:20px;padding:5px 16px;pointer-events:none;white-space:nowrap;backdrop-filter:blur(4px);transition:opacity .2s}
 .mode-overlay .dot{width:7px;height:7px;border-radius:50%;background:var(--blue);animation:blink 1.4s infinite}
 .mode-overlay .txt{font-size:0.63rem;letter-spacing:2px;text-transform:uppercase;color:var(--blue);font-weight:600}
 .mode-overlay.hidden{opacity:0;pointer-events:none}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
-.cv-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:0.62rem;color:var(--muted);background:rgba(0,0,0,.6);padding:4px 12px;border-radius:10px;pointer-events:none;border:1px solid var(--bdr);letter-spacing:.4px;white-space:nowrap}
+.cv-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:0.62rem;color:var(--muted);background:rgba(255,255,255,.85);padding:4px 12px;border-radius:10px;pointer-events:none;border:1px solid var(--bdr);letter-spacing:.4px;white-space:nowrap;backdrop-filter:blur(4px)}
 
 .tb{display:flex;align-items:center;gap:7px;padding:6px 12px;border-top:1px solid var(--bdr);background:var(--surf);flex-shrink:0;flex-wrap:wrap}
 .stat{font-size:0.67rem;color:var(--muted);background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;padding:3px 9px;white-space:nowrap}
@@ -99,16 +100,32 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
 .legend{padding:9px 12px;border-top:1px solid var(--bdr)}
 .legend-title{font-size:0.57rem;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
 
-.toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--surf3);border:1px solid var(--bdr2);color:var(--txt);font-size:0.72rem;padding:5px 14px;border-radius:3px;pointer-events:none;opacity:0;transition:all .22s;z-index:999;white-space:nowrap}
+.toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--surf);border:1px solid var(--bdr);color:var(--txt);font-size:0.72rem;padding:5px 14px;border-radius:3px;pointer-events:none;opacity:0;transition:all .22s;z-index:999;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.25);z-index:900;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.modal{background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:20px;min-width:340px;max-width:440px;box-shadow:0 8px 32px rgba(0,0,0,0.12)}
+.modal-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:0.9rem;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;color:var(--txt)}
+.modal-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.modal-list{max-height:260px;overflow-y:auto;margin-bottom:14px}
+.modal-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--bdr);border-radius:4px;margin-bottom:6px;cursor:pointer;transition:all .14s;background:var(--surf2)}
+.modal-item:hover{border-color:var(--acc);background:var(--acc-dim)}
+.modal-item-name{flex:1;font-weight:600;font-size:0.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modal-item-meta{font-size:0.65rem;color:var(--muted);font-family:'JetBrains Mono',monospace;flex-shrink:0}
+.modal-item-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem;padding:2px 6px;border-radius:3px;transition:color .14s;flex-shrink:0}
+.modal-item-del:hover{color:var(--red)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
+.modal-btn{border:none;border-radius:4px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:0.75rem;letter-spacing:1.2px;text-transform:uppercase;padding:8px 18px;transition:all .14s}
+.modal-btn-primary{background:var(--acc);color:#fff}.modal-btn-primary:hover{opacity:.85}
+.modal-btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--bdr)}.modal-btn-ghost:hover{color:var(--txt)}
 </style>
 </head>
 <body>
 
 <div class="hdr">
   <div class="hdr-brand">
-    <div class="hdr-title">Pallet Stack <em>Builder</em></div>
-    <div class="hdr-badge">RGS Events · FWC26</div>
+    <div class="hdr-title">Auto<em>Stacker</em></div>
+    <div class="hdr-badge">&copy;2026 Vladislav Abramov · SM²ARTA&trade;</div>
   </div>
   <div class="hdr-actions">
     <button class="btn btn-mode on-place" id="modeBtn">✦ Place</button>
@@ -118,6 +135,9 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
     <div style="width:1px;height:18px;background:var(--bdr)"></div>
     <button class="btn btn-danger btn-sm" id="clearBtn">✕ Clear</button>
     <button class="btn btn-acc btn-sm" id="exportBtn">↓ PNG</button>
+    <div style="width:1px;height:18px;background:var(--bdr)"></div>
+    <button class="btn btn-ghost btn-sm" id="saveBtn">💾 Save</button>
+    <button class="btn btn-ghost btn-sm" id="loadBtn">📂 Open</button>
   </div>
 </div>
 
@@ -154,6 +174,19 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
           </div>
         </div>
         <button class="btn btn-acc btn-sm btn-full" id="addTypeBtn">+ Add Box Type</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Auto Build <span style="font-size:0.58rem;letter-spacing:1px;color:var(--acc)">set qty per type</span></div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div class="inp-row">
+          <span class="inp-lbl">Max H</span>
+          <input type="number" class="inp" id="abMaxH" value="96" min="1" max="999" style="width:48px">
+          <span style="font-size:0.6rem;color:var(--muted);flex-shrink:0">in</span>
+          <div style="flex:1"></div>
+          <button class="btn btn-acc btn-sm" id="autoBuildBtn" style="flex-shrink:0">&#9889; Auto Build</button>
+        </div>
       </div>
     </div>
 
@@ -214,11 +247,11 @@ const S={
   boxes:[],
   past:[], future:[],
   types:[
-    {id:'t1',name:'Chair – Flat',   w:24,d:24,h:18,color:'#C8823A',flipped:false},
-    {id:'t2',name:'Chair – Tall',   w:14,d:14,h:32,color:'#E8C060',flipped:false},
-    {id:'t3',name:'Desk Tabletop',  w:48,d:24,h:3, color:'#E2C870',flipped:false},
-    {id:'t4',name:'Desk Legs Box',  w:12,d:24,h:34,color:'#8A5618',flipped:false},
-    {id:'t5',name:'Desk Beams Box', w:36,d:12,h:3, color:'#B89030',flipped:false},
+    {id:'t1',name:'Chair – Flat',   w:24,d:24,h:18,color:'#C8823A',orient:0},
+    {id:'t2',name:'Chair – Tall',   w:14,d:14,h:32,color:'#E8C060',orient:0},
+    {id:'t3',name:'Desk Tabletop',  w:48,d:24,h:3, color:'#E2C870',orient:0},
+    {id:'t4',name:'Desk Legs Box',  w:12,d:24,h:34,color:'#8A5618',orient:0},
+    {id:'t5',name:'Desk Beams Box', w:36,d:12,h:3, color:'#B89030',orient:0},
   ],
   activeId:'t1',
   hGx:null, hGy:null,
@@ -243,13 +276,26 @@ function toS(gx,gy,gz){
 function fromS(sx,sy){
   const ox=LW/2+S.panX, oy=LH*0.52+S.panY;
   const u=(sx-ox)/S.zoom, v=(sy-oy)/S.zoom;
-  return [u/BCW+v/BCH, v/BCH-u/BCW];
+  return [(u/BCW+v/BCH)/2, (v/BCH-u/BCW)/2];
+}
+function fromSAtZ(sx,sy,gz){
+  const ox=LW/2+S.panX, oy=LH*0.52+S.panY;
+  const u=(sx-ox)/S.zoom, v=(sy+gz*zh()-oy)/S.zoom;
+  return [(u/BCW+v/BCH)/2, (v/BCH-u/BCW)/2];
+}
+function ptInQuad(px,py,a,b,c,d){
+  function cross(o,p,q){return(p[0]-o[0])*(q[1]-o[1])-(p[1]-o[1])*(q[0]-o[0]);}
+  const d1=cross(a,b,[px,py]),d2=cross(b,c,[px,py]),d3=cross(c,d,[px,py]),d4=cross(d,a,[px,py]);
+  return (d1>=0&&d2>=0&&d3>=0&&d4>=0)||(d1<=0&&d2<=0&&d3<=0&&d4<=0);
 }
 
 function getType(id){ return S.types.find(t=>t.id===(id||S.activeId)); }
 function atype(){ return getType(S.activeId); }
-function tw(t){ return t.flipped?t.d:t.w; }
-function td(t){ return t.flipped?t.w:t.d; }
+const _PERMS=[[0,1,2],[1,0,2],[0,2,1],[2,0,1],[1,2,0],[2,1,0]];
+function _td(t){const d=[t.w,t.d,t.h],p=_PERMS[(t.orient||0)%6];return[d[p[0]],d[p[1]],d[p[2]]];}
+function tw(t){return _td(t)[0];}
+function td(t){return _td(t)[1];}
+function th(t){return _td(t)[2];}
 
 function hexRgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
 function shade(h,f){ const [r,g,b]=hexRgb(h); return `rgb(${cl(r*f)},${cl(g*f)},${cl(b*f)})`; }
@@ -274,10 +320,10 @@ function updUR(){ document.getElementById('undoBtn').disabled=!S.past.length; do
 
 function placeBox(gx,gy){
   const t=atype(); if(!t) return;
-  const w=tw(t),d=td(t);
+  const w=tw(t),d=td(t),h=th(t);
   if(!inBounds(gx,gy,w,d)){ toast('Out of bounds'); return; }
   saveHist();
-  S.boxes.push({id:S.nxtId++,gx,gy,gz:gravZ(gx,gy,w,d),w,d,h:t.h,color:t.color,name:t.name});
+  S.boxes.push({id:S.nxtId++,gx,gy,gz:gravZ(gx,gy,w,d),w,d,h,color:t.color,name:t.name});
   render();
 }
 
@@ -299,6 +345,109 @@ function pickUp(gx,gy){
   toast('Picked up — click destination to place');
 }
 
+// ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────
+// AUTO BUILD — layer-based multi-type pallet packing
+// Tries all 6 orientations per type, picks optimal
+// ─────────────────────────────────────────────────────
+
+// Find the best layer layout for a given footprint bw×bd on the pallet
+function _abLayouts(bw,bd){
+  const PW=S.palletW,PD=S.palletD,layouts=[];
+  function tryRowsD(wa,da,wb,db){
+    const nxa=Math.floor(PW/wa),nya=Math.floor(PD/da);
+    if(nxa<=0) return;
+    const cells=[];
+    for(let iy=0;iy<nya;iy++) for(let ix=0;ix<nxa;ix++)
+      cells.push({gx:ix*wa,gy:iy*da,w:wa,d:da});
+    const remD=PD-nya*da,nxb=Math.floor(PW/wb),nyb=remD>=db?Math.floor(remD/db):0;
+    for(let iy=0;iy<nyb;iy++) for(let ix=0;ix<nxb;ix++)
+      cells.push({gx:ix*wb,gy:nya*da+iy*db,w:wb,d:db});
+    if(cells.length) layouts.push(cells);
+  }
+  function tryColsW(wa,da,wb,db){
+    const nxa=Math.floor(PW/wa),nya=Math.floor(PD/da);
+    if(nya<=0) return;
+    const cells=[];
+    for(let iy=0;iy<nya;iy++) for(let ix=0;ix<nxa;ix++)
+      cells.push({gx:ix*wa,gy:iy*da,w:wa,d:da});
+    const remW=PW-nxa*wa,nxb=remW>=wb?Math.floor(remW/wb):0,nyb=Math.floor(PD/db);
+    for(let iy=0;iy<nyb;iy++) for(let ix=0;ix<nxb;ix++)
+      cells.push({gx:nxa*wa+ix*wb,gy:iy*db,w:wb,d:db});
+    if(cells.length) layouts.push(cells);
+  }
+  const O=[[bw,bd],[bd,bw]];
+  for(const[wa,da]of O)for(const[wb,db]of O){tryRowsD(wa,da,wb,db);tryColsW(wa,da,wb,db);}
+  if(!layouts.length) return null;
+  layouts.sort((a,b)=>b.length-a.length);
+  return layouts[0];
+}
+
+function autoBuild(){
+  const maxH=parseInt(document.getElementById('abMaxH').value)||96;
+  const items=[];
+  S.types.forEach(t=>{
+    const e=document.getElementById('abq-'+t.id);
+    const qty=e?parseInt(e.value)||0:0;
+    if(qty>0) items.push({t,qty});
+  });
+  if(!items.length){ toast('Set qty on box types first'); return; }
+
+  // For each type, try all 6 orientations → pick best (most boxes fit within maxH)
+  const plans=[];
+  for(const item of items){
+    const t=item.t, dims=[t.w,t.d,t.h], seen=new Set();
+    let best=null;
+    for(let oi=0;oi<6;oi++){
+      const p=_PERMS[oi];
+      const fw=dims[p[0]], fd=dims[p[1]], fh=dims[p[2]];
+      const key=fw+','+fd+','+fh;
+      if(seen.has(key)) continue; seen.add(key);
+      if(fh>maxH) continue;
+      const layout=_abLayouts(fw,fd);
+      if(!layout) continue;
+      const perLayer=layout.length;
+      const layersNeeded=Math.ceil(item.qty/perLayer);
+      const layersFit=Math.floor(maxH/fh);
+      const canPlace=Math.min(item.qty, layersFit*perLayer);
+      const totalH=Math.ceil(canPlace/perLayer)*fh;
+      // Score: maximize placed count, then minimize height
+      if(!best||canPlace>best.canPlace||(canPlace===best.canPlace&&totalH<best.totalH))
+        best={layout,perLayer,fh,canPlace,totalH,fw,fd};
+    }
+    if(best) plans.push({t:item.t,qty:item.qty,...best});
+    else plans.push({t:item.t,qty:item.qty,canPlace:0});
+  }
+
+  // Sort: largest footprint first (stable base)
+  plans.sort((a,b)=>(b.fw||0)*(b.fd||0)-(a.fw||0)*(a.fd||0));
+
+  saveHist();
+  S.boxes=[];
+  let z=0,total=0;
+  const warns=[];
+
+  for(const plan of plans){
+    if(!plan.layout){ warns.push(`${plan.t.name}: too large`);continue; }
+    let placed=0;
+    while(placed<plan.qty&&z+plan.fh<=maxH){
+      for(const c of plan.layout){
+        if(placed>=plan.qty) break;
+        S.boxes.push({id:S.nxtId++,gx:c.gx,gy:c.gy,gz:z,
+          w:c.w,d:c.d,h:plan.fh,color:plan.t.color,name:plan.t.name});
+        placed++;
+      }
+      z+=plan.fh;
+    }
+    total+=placed;
+    if(placed<plan.qty) warns.push(`${plan.t.name}: ${placed}/${plan.qty}`);
+  }
+
+  render();
+  if(warns.length) toast(`Placed ${total} (${z}" tall) — ${warns.join(', ')}`);
+  else toast(`${total} boxes, ${z}" tall`);
+}
+
 function dropAt(gx,gy){
   const b=S.boxes.find(x=>x.id===S.selId); if(!b) return;
   if(!inBounds(gx,gy,b.w,b.d)){ toast('Out of bounds'); return; }
@@ -317,11 +466,15 @@ function drawBox(gx,gy,gz,w,d,h,color,alpha,sel){
   const E=toS(gx,gy,gz+h),   F=toS(gx+w,gy,gz+h);
   const G=toS(gx+w,gy+d,gz+h),H=toS(gx,gy+d,gz+h);
   ctx.save(); ctx.globalAlpha=alpha;
+  // Back faces first (covered by front faces)
+  poly([D,A,E,H], shade(color,.55), true);
+  poly([C,D,H,G], shade(color,.32), true);
+  // Visible front faces
   poly([A,B,F,E], shade(color,.68), true);
   poly([B,C,G,F], shade(color,.40), true);
   poly([E,F,G,H], shade(color,1.14), true);
   ctx.beginPath(); ctx.moveTo(...E); ctx.lineTo(...F);
-  ctx.strokeStyle='rgba(255,255,255,0.14)'; ctx.lineWidth=S.zoom*0.8; ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=S.zoom*0.8; ctx.stroke();
   // dim label
   if((w+d)>14&&S.zoom>0.4){
     const cx=(E[0]+F[0]+G[0]+H[0])/4, cy=(E[1]+F[1]+G[1]+H[1])/4;
@@ -341,6 +494,30 @@ function drawBox(gx,gy,gz,w,d,h,color,alpha,sel){
   ctx.restore();
 }
 
+// Topological sort for correct isometric draw order (handles varying-size boxes)
+function isoSort(boxes){
+  const n=boxes.length;
+  if(n<=1) return boxes.slice();
+  const fwd=Array.from({length:n},()=>[]);
+  const deg=new Uint16Array(n);
+  for(let i=0;i<n;i++){
+    const a=boxes[i], axe=a.gx+a.w, aye=a.gy+a.d, aze=a.gz+a.h;
+    for(let j=i+1;j<n;j++){
+      const b=boxes[j], bxe=b.gx+b.w, bye=b.gy+b.d, bze=b.gz+b.h;
+      // A behind B if A ends before B starts in any axis
+      const ab=axe<=b.gx||aye<=b.gy||aze<=b.gz;
+      const ba=bxe<=a.gx||bye<=a.gy||bze<=a.gz;
+      if(ab&&!ba){fwd[i].push(j);deg[j]++;}
+      else if(ba&&!ab){fwd[j].push(i);deg[i]++;}
+    }
+  }
+  const q=[],out=[];
+  for(let i=0;i<n;i++) if(!deg[i]) q.push(i);
+  while(q.length){const u=q.pop();out.push(boxes[u]);for(const v of fwd[u])if(!--deg[v])q.push(v);}
+  if(out.length<n){const s=new Set(out);for(const b of boxes)if(!s.has(b))out.push(b);}
+  return out;
+}
+
 function poly(pts,fill,stroke){
   ctx.beginPath(); ctx.moveTo(...pts[0]); pts.slice(1).forEach(p=>ctx.lineTo(...p)); ctx.closePath();
   ctx.fillStyle=fill; ctx.fill();
@@ -351,15 +528,18 @@ function drawPallet(){
   const W=S.palletW, D=S.palletD;
   const A=toS(-1,-1,-3),B=toS(W+1,-1,-3),C=toS(W+1,D+1,-3),Dv=toS(-1,D+1,-3);
   const E=toS(-1,-1,0),F=toS(W+1,-1,0),G=toS(W+1,D+1,0),H=toS(-1,D+1,0);
-  poly([A,B,F,E],'#3E2A0E',true); poly([B,C,G,F],'#2C1C08',true); poly([E,F,G,H],'#5C3E18',true);
+  // Back faces first (covered by front faces via painter's algorithm)
+  poly([A,Dv,H,E],'#C9A46E',true); poly([Dv,C,G,H],'#A8834A',true);
+  // Visible front faces
+  poly([A,B,F,E],'#B89258',true); poly([B,C,G,F],'#9C7840',true); poly([E,F,G,H],'#DDB87A',true);
   ctx.save();
   // minor grid every 4"
-  ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=0.4;
+  ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=0.4;
   for(let i=0;i<=W;i+=4){ ctx.beginPath(); ctx.moveTo(...toS(i,0,0)); ctx.lineTo(...toS(i,D,0)); ctx.stroke(); }
   for(let j=0;j<=D;j+=4){ ctx.beginPath(); ctx.moveTo(...toS(0,j,0)); ctx.lineTo(...toS(W,j,0)); ctx.stroke(); }
   // major ruler every 12"
-  ctx.strokeStyle='rgba(255,255,255,0.11)'; ctx.lineWidth=0.6;
-  ctx.fillStyle='rgba(255,255,255,0.14)'; ctx.font=`${Math.max(6,5.5*S.zoom)|0}px JetBrains Mono,monospace`; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.lineWidth=0.6;
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.font=`${Math.max(6,5.5*S.zoom)|0}px JetBrains Mono,monospace`; ctx.textAlign='center';
   for(let i=0;i<=W;i+=12){
     ctx.beginPath(); ctx.moveTo(...toS(i,0,0)); ctx.lineTo(...toS(i,D,0)); ctx.stroke();
     const [lx,ly]=toS(i,-2.5,0); if(i>0) ctx.fillText(i+'"',lx,ly);
@@ -374,24 +554,21 @@ function drawPallet(){
 function renderIso(){
   const dpr=window.devicePixelRatio||1;
   isoC.width=LW*dpr; isoC.height=LH*dpr; ctx.scale(dpr,dpr);
-  ctx.fillStyle='#0b0c0c'; ctx.fillRect(0,0,LW,LH);
+  ctx.fillStyle='#E4E6EA'; ctx.fillRect(0,0,LW,LH);
   const gr=ctx.createRadialGradient(LW/2,LH*.65,0,LW/2,LH*.65,LW*.42);
-  gr.addColorStop(0,'rgba(245,166,35,0.03)'); gr.addColorStop(1,'transparent');
+  gr.addColorStop(0,'rgba(212,133,10,0.06)'); gr.addColorStop(1,'transparent');
   ctx.fillStyle=gr; ctx.fillRect(0,0,LW,LH);
 
   drawPallet();
 
-  const sorted=[...S.boxes].sort((a,b)=>{
-    const da=a.gx+a.gy,db=b.gx+b.gy;
-    return Math.abs(da-db)>0.01?db-da:a.gz-b.gz;
-  });
+  const sorted=isoSort(S.boxes);
 
   // Place mode hover preview
   if(S.hGx!==null&&S.mode==='place'){
     const t=atype(); if(t){
-      const w=tw(t),d=td(t), gz=gravZ(S.hGx,S.hGy,w,d), ok=inBounds(S.hGx,S.hGy,w,d);
+      const w=tw(t),d=td(t),h=th(t), gz=gravZ(S.hGx,S.hGy,w,d), ok=inBounds(S.hGx,S.hGy,w,d);
       if(ok){
-        drawBox(S.hGx,S.hGy,gz,w,d,t.h,t.color,0.36);
+        drawBox(S.hGx,S.hGy,gz,w,d,h,t.color,0.36);
         const fp=[toS(S.hGx,S.hGy,0),toS(S.hGx+w,S.hGy,0),toS(S.hGx+w,S.hGy+d,0),toS(S.hGx,S.hGy+d,0)];
         ctx.save(); ctx.beginPath(); ctx.moveTo(...fp[0]); fp.slice(1).forEach(p=>ctx.lineTo(...p)); ctx.closePath();
         ctx.strokeStyle=t.color; ctx.lineWidth=1.3; ctx.globalAlpha=0.6; ctx.setLineDash([4,3]); ctx.stroke(); ctx.restore();
@@ -433,7 +610,7 @@ function renderTop(){
   const W=S.palletW,D=S.palletD;
   const cs=Math.max(2,Math.min(7,Math.floor(170/Math.max(W,D))));
   topC.width=W*cs+1; topC.height=D*cs+1;
-  tCtx.fillStyle='#0b0c0c'; tCtx.fillRect(0,0,topC.width,topC.height);
+  tCtx.fillStyle='#E4E6EA'; tCtx.fillRect(0,0,topC.width,topC.height);
 
   const hmap=Array.from({length:D},()=>Array(W).fill(0));
   const cmap=Array.from({length:D},()=>Array(W).fill(null));
@@ -448,7 +625,7 @@ function renderTop(){
   for(let y=0;y<D;y++) for(let x=0;x<W;x++){
     const h=hmap[y][x],c=cmap[y][x];
     if(c){ tCtx.fillStyle=c; tCtx.globalAlpha=0.32+(maxH>0?h/maxH:0)*0.58; tCtx.fillRect(x*cs,y*cs,cs,cs); tCtx.globalAlpha=1; }
-    tCtx.strokeStyle=h>0?'rgba(0,0,0,0.4)':'rgba(255,255,255,0.04)'; tCtx.lineWidth=0.5;
+    tCtx.strokeStyle=h>0?'rgba(0,0,0,0.2)':'rgba(0,0,0,0.06)'; tCtx.lineWidth=0.5;
     tCtx.strokeRect(x*cs+.25,y*cs+.25,cs-.5,cs-.5);
     if(h>0&&cs>=5){ tCtx.fillStyle='rgba(0,0,0,0.55)'; tCtx.font=`${Math.max(4,cs*.62)|0}px JetBrains Mono,monospace`; tCtx.textAlign='center'; tCtx.textBaseline='middle'; tCtx.fillText(h,x*cs+cs/2,y*cs+cs/2); }
   }
@@ -480,7 +657,7 @@ function updStats(){
   const t=atype();
   const pill=document.getElementById('aPill');
   if(t){
-    document.getElementById('aPillTxt').textContent=`${t.name}  ${tw(t)}"×${td(t)}"×${t.h}"`;
+    document.getElementById('aPillTxt').textContent=`${t.name}  ${tw(t)}"×${td(t)}"×${th(t)}"`;
     pill.style.cssText=`border-color:${t.color};color:${t.color};background:${t.color}18`;
   } else {
     document.getElementById('aPillTxt').textContent='Select type →';
@@ -517,17 +694,24 @@ function updModeUI(){
 // BOX TYPE LIST
 // ─────────────────────────────────────────────────────
 function renderBTL(){
+  // Preserve qty values across re-renders
+  const prevQtys={};
+  S.types.forEach(t=>{const e=document.getElementById('abq-'+t.id);if(e)prevQtys[t.id]=e.value;});
+
   const el=document.getElementById('btl');
   document.getElementById('typeCnt').textContent=`(${S.types.length})`;
   el.innerHTML=S.types.map(t=>`
-    <div class="bti${t.id===S.activeId?' active':''}${t.flipped?' flipped':''}" data-id="${t.id}">
+    <div class="bti${t.id===S.activeId?' active':''}${(t.orient||0)>0?' flipped':''}" data-id="${t.id}">
       <div class="bti-sw" style="background:${t.color}"></div>
       <div class="bti-info">
         <div class="bti-name">${t.name}</div>
-        <div class="bti-dim">${tw(t)}" × ${td(t)}" × ${t.h}"</div>
+        <div class="bti-dim">${tw(t)}" × ${td(t)}" × ${th(t)}"</div>
       </div>
+      <input type="number" class="inp" id="abq-${t.id}" value="${prevQtys[t.id]||0}" min="0" max="9999"
+        style="width:38px;padding:3px 2px;font-size:0.68rem;text-align:center;font-family:'JetBrains Mono',monospace;flex-shrink:0;border-color:var(--bdr)"
+        title="Qty for Auto Build" onclick="event.stopPropagation()">
       <div class="bti-actions">
-        <button class="bti-btn flip-btn" data-flip="${t.id}" title="Flip W↔D">⟳</button>
+        <button class="bti-btn flip-btn" data-flip="${t.id}" title="Rotate orientation">⟳</button>
         <button class="bti-btn del-btn" data-del="${t.id}" title="Delete">✕</button>
       </div>
     </div>`).join('');
@@ -549,9 +733,13 @@ function renderBTL(){
 
 function flipType(id){
   const t=S.types.find(x=>x.id===id); if(!t) return;
-  t.flipped=!t.flipped;
+  // Cycle through unique orientations (skip duplicates for cubes etc.)
+  const dims=[t.w,t.d,t.h], seen=new Set(), unique=[];
+  for(let i=0;i<6;i++){const p=_PERMS[i];const k=dims[p[0]]+','+dims[p[1]]+','+dims[p[2]];if(!seen.has(k)){seen.add(k);unique.push(i);}}
+  const cur=unique.indexOf(t.orient||0);
+  t.orient=unique[(cur+1)%unique.length];
   renderBTL(); updStats(); render();
-  toast(`Flipped → ${tw(t)}" × ${td(t)}"`);
+  toast(`Rotated → ${tw(t)}" × ${td(t)}" × ${th(t)}"`);
 }
 
 // ─────────────────────────────────────────────────────
@@ -567,8 +755,34 @@ function render(){
 // EVENTS
 // ─────────────────────────────────────────────────────
 function gridPos(e){
-  const r=isoC.getBoundingClientRect(), [gx,gy]=fromS(e.clientX-r.left,e.clientY-r.top);
-  return [Math.floor(gx),Math.floor(gy)];
+  const r=isoC.getBoundingClientRect();
+  const sx=e.clientX-r.left, sy=e.clientY-r.top;
+  // Get active box size for edge-clamping
+  let bw=0,bd=0;
+  if(S.mode==='place'){const t=atype();if(t){bw=tw(t);bd=td(t);}}
+  else if(S.selId){const b=S.boxes.find(x=>x.id===S.selId);if(b){bw=b.w;bd=b.d;}}
+  const maxGx=bw?S.palletW-bw:S.palletW-1, maxGy=bd?S.palletD-bd:S.palletD-1;
+  function snap(gx,gy){
+    return [Math.max(0,Math.min(maxGx,Math.round(gx))),Math.max(0,Math.min(maxGy,Math.round(gy)))];
+  }
+  // Hit-test box top faces (front-to-back) for height-aware coords
+  const sorted=[...S.boxes].sort((a,b)=>{
+    const da=a.gx+a.gy,db=b.gx+b.gy;
+    return da!==db?da-db:(b.gz+b.h)-(a.gz+a.h);
+  });
+  for(const box of sorted){
+    const E=toS(box.gx,box.gy,box.gz+box.h);
+    const F=toS(box.gx+box.w,box.gy,box.gz+box.h);
+    const G=toS(box.gx+box.w,box.gy+box.d,box.gz+box.h);
+    const H=toS(box.gx,box.gy+box.d,box.gz+box.h);
+    if(ptInQuad(sx,sy,E,F,G,H)){
+      const [gx,gy]=fromSAtZ(sx,sy,box.gz+box.h);
+      return snap(gx,gy);
+    }
+  }
+  // Ground plane fallback
+  const [gx,gy]=fromS(sx,sy);
+  return snap(gx,gy);
 }
 
 isoC.addEventListener('mousemove',e=>{
@@ -605,11 +819,12 @@ document.getElementById('addTypeBtn').addEventListener('click',()=>{
   const h=parseInt(document.getElementById('nH').value)||1;
   const color=document.getElementById('nClr').value;
   const id='u'+S.nxtId++;
-  S.types.push({id,name,w,d,h,color,flipped:false});
+  S.types.push({id,name,w,d,h,color,orient:0});
   S.activeId=id; document.getElementById('nName').value='';
   renderBTL(); updStats(); render();
   toast(`Added: ${name}  ${w}"×${d}"×${h}"`);
 });
+document.getElementById('autoBuildBtn').addEventListener('click',autoBuild);
 document.getElementById('applyP').addEventListener('click',()=>{
   S.palletW=parseInt(document.getElementById('pw').value)||48;
   S.palletD=parseInt(document.getElementById('pd').value)||40;
@@ -626,6 +841,14 @@ document.getElementById('exportBtn').addEventListener('click',()=>{
 });
 
 window.addEventListener('keydown',e=>{
+  // If a modal is open, only handle Escape to close it
+  if(document.querySelector('.modal-bg')){
+    if(e.key==='Escape') _closeModal();
+    return;
+  }
+  // Skip shortcuts when typing in inputs
+  const tag=document.activeElement?.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
   if(e.key==='Escape'){
     if(S.selId){ S.selId=null; updModeUI(); render(); return; }
     if(S.mode==='move'){ S.mode='place'; S.selId=null; updModeUI(); render(); }
@@ -641,6 +864,158 @@ function toast(msg){ const el=document.getElementById('toast'); el.textContent=m
 
 new ResizeObserver(()=>render()).observe(cvWrap);
 renderBTL(); updModeUI(); render();
+
+// ─────────────────────────────────────────────────────
+// SUPABASE — save / load pallets
+// ─────────────────────────────────────────────────────
+const SB_URL='https://stwopndhnxcjyomkufii.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN0d29wbmRobnhjanlvbWt1ZmlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5MDgyNjgsImV4cCI6MjA4ODQ4NDI2OH0.YNhp7z5kxnzpX15Vw8NVVWaZG1-Lj3Q9uaZDiKmBvf8';
+let SB;
+try{SB=supabase.createClient(SB_URL,SB_KEY)}catch(e){console.warn('Supabase init failed:',e)}
+
+// Index key — stores list of saved pallet names/ids
+const PSB_INDEX='psb-index';
+
+async function _psbLoadIndex(){
+  if(!SB) return [];
+  try{
+    const{data}=await SB.from('shared_state').select('value').eq('id',PSB_INDEX).single();
+    return data?JSON.parse(data.value):[];
+  }catch(e){return[];}
+}
+async function _psbSaveIndex(idx){
+  if(!SB) return;
+  await SB.from('shared_state').upsert({id:PSB_INDEX,value:JSON.stringify(idx),updated_at:new Date().toISOString()});
+}
+
+function _psbSnapshot(){
+  // Collect qty values from type list
+  const qtys={};
+  S.types.forEach(t=>{const e=document.getElementById('abq-'+t.id);if(e)qtys[t.id]=parseInt(e.value)||0;});
+  return {
+    palletW:S.palletW, palletD:S.palletD,
+    types:S.types.map(t=>({id:t.id,name:t.name,w:t.w,d:t.d,h:t.h,color:t.color,orient:t.orient||0})),
+    qtys,
+    activeId:S.activeId,
+    boxes:S.boxes.map(b=>({gx:b.gx,gy:b.gy,gz:b.gz,w:b.w,d:b.d,h:b.h,color:b.color,name:b.name})),
+  };
+}
+
+function _psbRestore(snap){
+  S.palletW=snap.palletW||48; S.palletD=snap.palletD||40;
+  document.getElementById('pw').value=S.palletW;
+  document.getElementById('pd').value=S.palletD;
+  S.types=(snap.types||[]).map(t=>({id:t.id,name:t.name,w:t.w,d:t.d,h:t.h,color:t.color,orient:t.orient||0}));
+  S.activeId=snap.activeId||S.types[0]?.id||null;
+  S.boxes=(snap.boxes||[]).map((b,i)=>({id:S.nxtId++,gx:b.gx,gy:b.gy,gz:b.gz,w:b.w,d:b.d,h:b.h,color:b.color,name:b.name}));
+  S.past=[]; S.future=[]; updUR();
+  renderBTL();
+  // Restore qty values
+  if(snap.qtys) S.types.forEach(t=>{const e=document.getElementById('abq-'+t.id);if(e&&snap.qtys[t.id]!==undefined)e.value=snap.qtys[t.id];});
+  render();
+}
+
+function _closeModal(){ document.querySelectorAll('.modal-bg').forEach(m=>m.remove()); }
+
+function _makeModal(html){
+  _closeModal();
+  const bg=document.createElement('div'); bg.className='modal-bg';
+  const box=document.createElement('div'); box.className='modal';
+  box.innerHTML=html;
+  box.addEventListener('click',e=>e.stopPropagation());
+  bg.appendChild(box);
+  bg.addEventListener('click',()=>_closeModal());
+  document.body.appendChild(bg);
+  return box;
+}
+
+// ── SAVE MODAL ──
+async function showSaveModal(){
+  const idx=await _psbLoadIndex();
+  const box=_makeModal(`
+    <div class="modal-title">Save Pallet</div>
+    <div class="modal-row">
+      <input type="text" class="inp" id="saveName" placeholder="e.g. Stage A — Chairs" style="flex:1">
+      <button class="modal-btn modal-btn-primary" id="saveConfirm">Save</button>
+    </div>
+    ${idx.length?'<div style="font-size:0.62rem;color:var(--muted);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">Or overwrite existing:</div><div class="modal-list" id="saveList">'+
+      idx.map(e=>`<div class="modal-item" data-id="${e.id}"><span class="modal-item-name">${e.name}</span><span class="modal-item-meta">${e.date||''}</span></div>`).join('')+
+    '</div>':''}
+    <div class="modal-actions"><button class="modal-btn modal-btn-ghost" id="saveCancel">Cancel</button></div>
+  `);
+
+  async function doSave(name,existingId){
+    if(!name.trim()){toast('Enter a name');return;}
+    const id=existingId||'psb-'+Date.now();
+    const snap=_psbSnapshot();
+    try{
+      await SB.from('shared_state').upsert({id,value:JSON.stringify(snap),updated_at:new Date().toISOString()});
+      const newIdx=idx.filter(e=>e.id!==id);
+      newIdx.unshift({id,name:name.trim(),date:new Date().toLocaleDateString()});
+      await _psbSaveIndex(newIdx);
+      _closeModal(); toast(`Saved: ${name.trim()}`);
+    }catch(err){toast('Save error');console.error(err);}
+  }
+
+  box.querySelector('#saveConfirm').addEventListener('click',()=>doSave(box.querySelector('#saveName').value));
+  box.querySelector('#saveName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.stopPropagation();doSave(box.querySelector('#saveName').value);}});
+  box.querySelector('#saveCancel').addEventListener('click',()=>_closeModal());
+  const list=box.querySelector('#saveList');
+  if(list) list.querySelectorAll('.modal-item').forEach(el=>el.addEventListener('click',()=>{
+    const entry=idx.find(e=>e.id===el.dataset.id);
+    if(entry&&confirm(`Overwrite "${entry.name}"?`)) doSave(entry.name,entry.id);
+  }));
+  box.querySelector('#saveName').focus();
+}
+
+// ── LOAD MODAL ──
+async function showLoadModal(){
+  const idx=await _psbLoadIndex();
+  if(!idx.length){toast('No saved pallets');return;}
+  const box=_makeModal(`
+    <div class="modal-title">Open Pallet</div>
+    <div class="modal-list" id="loadList">${
+      idx.map(e=>`<div class="modal-item" data-id="${e.id}">
+        <span class="modal-item-name">${e.name}</span>
+        <span class="modal-item-meta">${e.date||''}</span>
+        <button class="modal-item-del" data-del="${e.id}" title="Delete">✕</button>
+      </div>`).join('')
+    }</div>
+    <div class="modal-actions"><button class="modal-btn modal-btn-ghost" id="loadCancel">Cancel</button></div>
+  `);
+
+  box.querySelector('#loadCancel').addEventListener('click',()=>_closeModal());
+
+  box.querySelectorAll('.modal-item').forEach(el=>{
+    el.addEventListener('click',async e=>{
+      if(e.target.closest('[data-del]')) return;
+      const id=el.dataset.id;
+      try{
+        const{data}=await SB.from('shared_state').select('value').eq('id',id).single();
+        if(data){_psbRestore(JSON.parse(data.value));_closeModal();toast('Loaded!');}
+        else toast('Not found');
+      }catch(err){toast('Load error');console.error(err);}
+    });
+  });
+  box.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click',async e=>{
+      e.stopPropagation();
+      const id=btn.dataset.del;
+      const entry=idx.find(x=>x.id===id);
+      if(!entry||!confirm(`Delete "${entry.name}"?`)) return;
+      try{
+        await SB.from('shared_state').delete().eq('id',id);
+        const newIdx=idx.filter(x=>x.id!==id);
+        await _psbSaveIndex(newIdx);
+        _closeModal(); showLoadModal();
+        toast(`Deleted: ${entry.name}`);
+      }catch(err){toast('Delete error');console.error(err);}
+    });
+  });
+}
+
+document.getElementById('saveBtn').addEventListener('click',showSaveModal);
+document.getElementById('loadBtn').addEventListener('click',showLoadModal);
 </script>
 </body>
 </html>
