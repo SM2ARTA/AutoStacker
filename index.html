@@ -41,9 +41,16 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .main{display:flex;flex:1;overflow:hidden}
 
 .lp{width:400px;flex-shrink:0;background:var(--surf);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden}
-.sec{padding:11px 12px;border-bottom:1px solid var(--bdr);flex-shrink:0}
+.sec{padding:12px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0}
 .sec-title{font-size:0.58rem;letter-spacing:3px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
 .sec-title span{color:var(--acc);font-family:'JetBrains Mono',monospace}
+.sec-compact{padding:8px 14px 6px;border-bottom:1px solid var(--bdr);flex-shrink:0}
+.preset-btn{background:var(--surf2);border:1px solid var(--bdr);border-radius:4px;padding:4px 10px;font-size:0.62rem;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:0.8px;color:var(--muted);cursor:pointer;transition:all .14s}
+.preset-btn:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
+.field-group{background:var(--surf2);border:1px solid var(--bdr);border-radius:6px;padding:10px 12px;margin-bottom:6px}
+.field-label{font-size:0.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px;font-weight:600}
+.chk-label{font-size:0.62rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none}
+.chk-label input{margin:0;accent-color:var(--acc)}
 
 .inp{background:var(--surf2);border:1px solid var(--bdr);color:var(--txt);border-radius:2px;padding:6px 8px;font-size:0.75rem;font-family:'Barlow',sans-serif;outline:none;transition:border .14s;width:100%}
 .inp:focus{border-color:var(--acc)}
@@ -53,12 +60,12 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .inp-lbl{font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;flex-shrink:0;white-space:nowrap}
 .inp-x{color:var(--muted);font-size:0.8rem;flex-shrink:0}
 
-.btl{flex:1;overflow-y:auto;padding:8px}
+.btl{flex:1;overflow-y:auto;padding:6px 10px}
 .btl::-webkit-scrollbar{width:3px}.btl::-webkit-scrollbar-track{background:transparent}.btl::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
-.bti{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:2px;border:1px solid var(--bdr);background:var(--surf2);cursor:pointer;margin-bottom:5px;transition:all .14s;position:relative;user-select:none}
-.bti:hover{border-color:var(--bdr2);background:var(--surf3)}
-.bti.active{border-color:var(--acc);background:var(--acc-dim)}
-.bti-sw{width:20px;height:13px;border-radius:2px;flex-shrink:0;border:1px solid rgba(255,255,255,0.1)}
+.bti{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;border:1px solid var(--bdr);background:var(--surf);cursor:pointer;margin-bottom:6px;transition:all .14s;position:relative;user-select:none}
+.bti:hover{border-color:var(--bdr2);background:var(--surf2)}
+.bti.active{border-color:var(--acc);background:var(--acc-dim);box-shadow:0 0 0 1px var(--acc)}
+.bti-sw{width:18px;height:18px;border-radius:4px;flex-shrink:0;border:1px solid rgba(0,0,0,0.08)}
 .bti-info{flex:1;min-width:0}
 .bti-name{font-size:0.74rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bti-dim{font-size:0.6rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px}
@@ -143,73 +150,74 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
 <div class="main">
 
   <div class="lp">
-    <div class="sec">
-      <div class="sec-title">Pallet Size <span style="font-size:0.58rem;letter-spacing:1px">(inches)</span></div>
-      <div class="inp-row">
-        <span class="inp-lbl">W</span>
+    <!-- PALLET SIZE -->
+    <div class="sec-compact">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="inp-lbl">Pallet</span>
         <input type="number" class="inp" id="pw" value="48" min="12" max="120" style="width:48px">
         <span class="inp-x">×</span>
-        <span class="inp-lbl">D</span>
-        <input type="number" class="inp" id="pd" value="40" min="12" max="80" style="width:48px">
-        <span style="font-size:0.6rem;color:var(--muted);flex-shrink:0">in</span>
-        <button class="btn btn-ghost btn-sm" id="applyP" style="padding:5px 8px;margin-left:2px" title="Apply">↻</button>
+        <input type="number" class="inp" id="pd" value="40" min="12" max="120" style="width:48px">
+        <span style="font-size:0.6rem;color:var(--muted)">in</span>
+        <button class="btn btn-ghost btn-sm" id="applyP" style="padding:4px 8px" title="Apply">↻</button>
       </div>
-      <div style="font-size:0.58rem;color:var(--muted);margin-top:5px">Std pallet = 48 × 40 in</div>
+      <div style="display:flex;gap:4px;margin-top:6px">
+        <button class="preset-btn" onclick="document.getElementById('pw').value=48;document.getElementById('pd').value=40;document.getElementById('applyP').click()">48×40</button>
+        <button class="preset-btn" onclick="document.getElementById('pw').value=48;document.getElementById('pd').value=48;document.getElementById('applyP').click()">48×48</button>
+        <button class="preset-btn" onclick="document.getElementById('pw').value=96;document.getElementById('pd').value=48;document.getElementById('applyP').click()">96×48 Double</button>
+        <button class="preset-btn" onclick="document.getElementById('pw').value=42;document.getElementById('pd').value=42;document.getElementById('applyP').click()">42×42</button>
+      </div>
     </div>
 
+    <!-- NEW BOX TYPE -->
     <div class="sec">
-      <div class="sec-title">New Box Type</div>
-      <div style="display:flex;flex-direction:column;gap:7px">
-        <div class="inp-row">
+      <div class="sec-title">Add Box Type</div>
+      <div class="field-group">
+        <div class="inp-row" style="margin-bottom:8px">
           <input type="text" class="inp" id="nSku" placeholder="SKU" style="width:90px;flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.68rem">
           <input type="text" class="inp" id="nName" placeholder="Item name" style="flex:1">
         </div>
-        <div>
-          <div style="font-size:0.58rem;color:var(--muted);margin-bottom:5px;letter-spacing:1px;text-transform:uppercase">W × D × H &nbsp;<span style="color:var(--acc);font-family:'JetBrains Mono',monospace;font-size:0.6rem">(inches)</span></div>
-          <div class="inp-row">
-            <input type="number" class="inp" id="nW" value="24" min="1" max="999" style="width:52px">
-            <span class="inp-x">×</span>
-            <input type="number" class="inp" id="nD" value="24" min="1" max="999" style="width:52px">
-            <span class="inp-x">×</span>
-            <input type="number" class="inp" id="nH" value="18" min="1" max="999" style="width:52px">
-            <input type="color" class="inp" id="nClr" value="#D09040" title="Color">
-          </div>
+        <div class="field-label">Dimensions <span style="color:var(--acc);font-family:'JetBrains Mono',monospace">(in)</span></div>
+        <div class="inp-row" style="margin-bottom:8px">
+          <input type="number" class="inp" id="nW" value="24" min="1" max="999" style="width:52px" placeholder="W">
+          <span class="inp-x">×</span>
+          <input type="number" class="inp" id="nD" value="24" min="1" max="999" style="width:52px" placeholder="D">
+          <span class="inp-x">×</span>
+          <input type="number" class="inp" id="nH" value="18" min="1" max="999" style="width:52px" placeholder="H">
+          <input type="color" class="inp" id="nClr" value="#D09040" title="Color">
         </div>
         <div class="inp-row">
-          <span class="inp-lbl">Weight</span>
-          <input type="number" class="inp" id="nWt" value="0" min="0" max="9999" step="0.1" style="width:56px">
-          <span style="font-size:0.6rem;color:var(--muted);flex-shrink:0">lbs</span>
+          <input type="number" class="inp" id="nWt" value="0" min="0" max="9999" step="0.1" style="width:60px" placeholder="0">
+          <span style="font-size:0.6rem;color:var(--muted)">lbs</span>
           <div style="flex:1"></div>
-          <label style="font-size:0.6rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none">
-            <input type="checkbox" id="nFlat"> Flat only
-          </label>
+          <label class="chk-label"><input type="checkbox" id="nFlat"> Flat only</label>
         </div>
-        <button class="btn btn-acc btn-sm btn-full" id="addTypeBtn">+ Add Box Type</button>
+      </div>
+      <button class="btn btn-acc btn-sm btn-full" id="addTypeBtn">+ Add Box Type</button>
+    </div>
+
+    <!-- AUTO BUILD -->
+    <div class="sec-compact" style="background:var(--surf2)">
+      <div class="inp-row" style="margin-bottom:6px">
+        <span style="font-size:0.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--txt)">Auto Build</span>
+        <div style="flex:1"></div>
+        <button class="btn btn-acc btn-sm" id="autoBuildBtn" style="padding:5px 14px">&#9889; Build</button>
+      </div>
+      <div class="inp-row">
+        <span class="inp-lbl">Max H</span>
+        <input type="number" class="inp" id="abMaxH" value="96" min="1" max="999" style="width:48px">
+        <span style="font-size:0.6rem;color:var(--muted)">in</span>
+        <div style="flex:1"></div>
+        <label class="chk-label" title="Allow up to 50% overhang off pallet edge">
+          <input type="checkbox" id="abOverhang"> Overhang
+        </label>
+        <label class="chk-label" title="Alternate layer rotation for stability">
+          <input type="checkbox" id="abInterlock" checked> Interlock
+        </label>
       </div>
     </div>
 
-    <div class="sec">
-      <div class="sec-title">Auto Build <span style="font-size:0.58rem;letter-spacing:1px;color:var(--acc)">set qty per type</span></div>
-      <div style="display:flex;flex-direction:column;gap:7px">
-        <div class="inp-row">
-          <span class="inp-lbl">Max H</span>
-          <input type="number" class="inp" id="abMaxH" value="96" min="1" max="999" style="width:48px">
-          <span style="font-size:0.6rem;color:var(--muted);flex-shrink:0">in</span>
-          <div style="flex:1"></div>
-          <label style="font-size:0.6rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none" title="Allow boxes to overhang up to 50% off pallet edge">
-            <input type="checkbox" id="abOverhang"> Overhang
-          </label>
-          <label style="font-size:0.6rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none" title="Alternate layer rotation for stability">
-            <input type="checkbox" id="abInterlock" checked> Interlock
-          </label>
-        </div>
-        <div style="display:flex;justify-content:flex-end">
-          <button class="btn btn-acc btn-sm" id="autoBuildBtn" style="flex-shrink:0">&#9889; Auto Build</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="sec" style="padding-bottom:6px;border-bottom:none">
+    <!-- BOX TYPES LIST -->
+    <div class="sec-compact" style="border-bottom:none">
       <div class="sec-title">Box Types <span id="typeCnt"></span></div>
     </div>
     <div class="btl" id="btl"></div>
@@ -237,6 +245,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="tb-spacer"></div>
       <kbd>F</kbd><span style="font-size:0.6rem;color:var(--muted)">rotate</span>&nbsp;
       <kbd>M</kbd><span style="font-size:0.6rem;color:var(--muted)">move</span>&nbsp;
+      <kbd>Q</kbd><kbd>E</kbd><span style="font-size:0.6rem;color:var(--muted)">rotate view</span>&nbsp;
       <kbd>Del</kbd><span style="font-size:0.6rem;color:var(--muted)">remove</span>&nbsp;
       <kbd>Esc</kbd><span style="font-size:0.6rem;color:var(--muted)">cancel</span>&nbsp;
       <kbd>Ctrl+Z</kbd><span style="font-size:0.6rem;color:var(--muted)">undo</span>&nbsp;
@@ -284,6 +293,7 @@ const S={
   midDrag:false, dragLast:null,
   mode:'place',         // 'place' | 'move'
   selId:null,           // picked-up box id in move mode
+  viewRot:0,            // 0,1,2,3 — 90° rotation steps
   nxtId:100,
 };
 
@@ -294,19 +304,34 @@ let LW=800, LH=600;
 
 const cw=()=>BCW*S.zoom, ch=()=>BCH*S.zoom, zh=()=>BZH*S.zoom;
 
+// View rotation helpers (rotate around pallet center)
+function _vrot(gx,gy){
+  const cx=S.palletW/2,cy=S.palletD/2;let rx=gx-cx,ry=gy-cy;
+  switch(S.viewRot&3){case 1:{const t=rx;rx=-ry;ry=t;}break;case 2:rx=-rx;ry=-ry;break;case 3:{const t=rx;rx=ry;ry=-t;}break;}
+  return[rx+cx,ry+cy];
+}
+function _vunrot(gx,gy){
+  const cx=S.palletW/2,cy=S.palletD/2;let rx=gx-cx,ry=gy-cy;
+  switch(S.viewRot&3){case 1:{const t=rx;rx=ry;ry=-t;}break;case 2:rx=-rx;ry=-ry;break;case 3:{const t=rx;rx=-ry;ry=t;}break;}
+  return[rx+cx,ry+cy];
+}
+
 function toS(gx,gy,gz){
+  const[rx,ry]=_vrot(gx,gy);
   const ox=LW/2+S.panX, oy=LH*0.52+S.panY;
-  return [ox+(gx-gy)*cw(), oy+(gx+gy)*ch()-gz*zh()];
+  return [ox+(rx-ry)*cw(), oy+(rx+ry)*ch()-gz*zh()];
 }
 function fromS(sx,sy){
   const ox=LW/2+S.panX, oy=LH*0.52+S.panY;
   const u=(sx-ox)/S.zoom, v=(sy-oy)/S.zoom;
-  return [(u/BCW+v/BCH)/2, (v/BCH-u/BCW)/2];
+  const rgx=(u/BCW+v/BCH)/2, rgy=(v/BCH-u/BCW)/2;
+  return _vunrot(rgx,rgy);
 }
 function fromSAtZ(sx,sy,gz){
   const ox=LW/2+S.panX, oy=LH*0.52+S.panY;
   const u=(sx-ox)/S.zoom, v=(sy+gz*zh()-oy)/S.zoom;
-  return [(u/BCW+v/BCH)/2, (v/BCH-u/BCW)/2];
+  const rgx=(u/BCW+v/BCH)/2, rgy=(v/BCH-u/BCW)/2;
+  return _vunrot(rgx,rgy);
 }
 function ptInQuad(px,py,a,b,c,d){
   function cross(o,p,q){return(p[0]-o[0])*(q[1]-o[1])-(p[1]-o[1])*(q[0]-o[0]);}
@@ -519,11 +544,17 @@ function drawBox(gx,gy,gz,w,d,h,color,alpha,sel){
   const E=toS(x0,y0,z1),     F=toS(x1,y0,z1);
   const G=toS(x1,y1,z1),     H=toS(x0,y1,z1);
   ctx.save(); ctx.globalAlpha=alpha;
-  // Back faces first (covered by front faces)
-  poly([D,A,E,H], shade(color,.55), true);
-  poly([C,D,H,G], shade(color,.32), true);
-  // Visible front faces
-  poly([A,B,F,E], shade(color,.68), true);
+  // Draw all 4 side faces + top; painter's order depends on view rotation
+  const faces=[
+    {pts:[A,B,F,E],sh:.68}, // gy=min face (Y-)
+    {pts:[B,C,G,F],sh:.40}, // gx=max face (X+)
+    {pts:[D,A,E,H],sh:.55}, // gx=min face (X-)
+    {pts:[C,D,H,G],sh:.32}, // gy=max face (Y+)
+  ];
+  // Sort faces: back faces first based on view rotation
+  const fOrder=[[2,3,0,1],[3,0,1,2],[0,1,2,3],[1,2,3,0]]; // per rotation
+  const fo=fOrder[S.viewRot&3];
+  for(const fi of fo) poly(faces[fi].pts, shade(color,faces[fi].sh), true);
   poly([B,C,G,F], shade(color,.40), true);
   poly([E,F,G,H], shade(color,1.14), true);
   ctx.beginPath(); ctx.moveTo(...E); ctx.lineTo(...F);
@@ -551,13 +582,17 @@ function drawBox(gx,gy,gz,w,d,h,color,alpha,sel){
 function isoSort(boxes){
   const n=boxes.length;
   if(n<=1) return boxes.slice();
+  // Use rotated coordinates for view-dependent occlusion
+  const rb=boxes.map(b=>{
+    const[r1x,r1y]=_vrot(b.gx,b.gy),[r2x,r2y]=_vrot(b.gx+b.w,b.gy+b.d);
+    return{gx:Math.min(r1x,r2x),gy:Math.min(r1y,r2y),w:Math.abs(r2x-r1x),d:Math.abs(r2y-r1y),gz:b.gz,h:b.h};
+  });
   const fwd=Array.from({length:n},()=>[]);
   const deg=new Uint16Array(n);
   for(let i=0;i<n;i++){
-    const a=boxes[i], axe=a.gx+a.w, aye=a.gy+a.d, aze=a.gz+a.h;
+    const a=rb[i], axe=a.gx+a.w, aye=a.gy+a.d, aze=a.gz+a.h;
     for(let j=i+1;j<n;j++){
-      const b=boxes[j], bxe=b.gx+b.w, bye=b.gy+b.d, bze=b.gz+b.h;
-      // A behind B if A ends before B starts in any axis
+      const b=rb[j], bxe=b.gx+b.w, bye=b.gy+b.d, bze=b.gz+b.h;
       const ab=axe<=b.gx||aye<=b.gy||aze<=b.gz;
       const ba=bxe<=a.gx||bye<=a.gy||bze<=a.gz;
       if(ab&&!ba){fwd[i].push(j);deg[j]++;}
@@ -581,10 +616,16 @@ function drawPallet(){
   const W=S.palletW, D=S.palletD;
   const A=toS(-1,-1,-3),B=toS(W+1,-1,-3),C=toS(W+1,D+1,-3),Dv=toS(-1,D+1,-3);
   const E=toS(-1,-1,0),F=toS(W+1,-1,0),G=toS(W+1,D+1,0),H=toS(-1,D+1,0);
-  // Back faces first (covered by front faces via painter's algorithm)
-  poly([A,Dv,H,E],'#C9A46E',true); poly([Dv,C,G,H],'#A8834A',true);
-  // Visible front faces
-  poly([A,B,F,E],'#B89258',true); poly([B,C,G,F],'#9C7840',true); poly([E,F,G,H],'#DDB87A',true);
+  // All 4 side faces — draw back-to-front based on view rotation
+  const pf=[
+    {pts:[A,B,F,E],c:'#B89258'}, // Y- face
+    {pts:[B,C,G,F],c:'#9C7840'}, // X+ face
+    {pts:[Dv,A,E,H],c:'#C9A46E'}, // X- face
+    {pts:[C,Dv,H,G],c:'#A8834A'}, // Y+ face
+  ];
+  const po=[[2,3,0,1],[3,0,1,2],[0,1,2,3],[1,2,3,0]][S.viewRot&3];
+  for(const i of po) poly(pf[i].pts,pf[i].c,true);
+  poly([E,F,G,H],'#DDB87A',true);
   ctx.save();
   // minor grid every 4"
   ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=0.4;
@@ -780,22 +821,25 @@ function renderBTL(){
     <div class="bti${t.id===S.activeId?' active':''}${(t.orient||0)>0?' flipped':''}" data-id="${t.id}">
       <div class="bti-sw" style="background:${t.color}"></div>
       <div class="bti-info">
-        <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:4px">'+t.sku+'</span>':''}${t.name}</div>
+        <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:5px">'+t.sku+'</span>':''}${t.name}</div>
         <div class="bti-dim">${tw(t)}" × ${td(t)}" × ${th(t)}"</div>
-        <div class="bti-dim" style="display:flex;align-items:center;gap:4px;margin-top:2px">
+        <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
           <input type="number" class="inp" data-wt="${t.id}" value="${t.weight||0}" min="0" max="9999" step="0.1"
-            style="width:44px;padding:2px 3px;font-size:0.6rem;text-align:center;font-family:'JetBrains Mono',monospace;border-color:var(--bdr)"
+            style="width:42px;padding:2px 4px;font-size:0.6rem;text-align:center;font-family:'JetBrains Mono',monospace;border-color:var(--bdr);border-radius:3px"
             title="Weight (lbs)" onclick="event.stopPropagation()">
           <span style="font-size:0.55rem;color:var(--muted)">lb</span>
-          <label style="font-size:0.55rem;color:var(--muted);display:flex;align-items:center;gap:2px;cursor:pointer;user-select:none;margin-left:4px" onclick="event.stopPropagation()">
-            <input type="checkbox" data-flat="${t.id}" ${t.flat?'checked':''} style="margin:0"> flat
+          <label class="chk-label" style="font-size:0.55rem;margin-left:2px" onclick="event.stopPropagation()">
+            <input type="checkbox" data-flat="${t.id}" ${t.flat?'checked':''} style="margin:0;accent-color:var(--blue)"> flat
           </label>
         </div>
       </div>
-      <input type="number" class="inp" id="abq-${t.id}" value="${prevQtys[t.id]||0}" min="0" max="9999"
-        style="width:38px;padding:3px 2px;font-size:0.68rem;text-align:center;font-family:'JetBrains Mono',monospace;flex-shrink:0;border-color:var(--bdr)"
-        title="Qty for Auto Build" onclick="event.stopPropagation()">
-      <div class="bti-actions">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
+        <input type="number" class="inp" id="abq-${t.id}" value="${prevQtys[t.id]||0}" min="0" max="9999"
+          style="width:42px;padding:3px 2px;font-size:0.72rem;text-align:center;font-family:'JetBrains Mono',monospace;border-color:var(--bdr);border-radius:4px;font-weight:600"
+          title="Qty for Auto Build" onclick="event.stopPropagation()">
+        <span style="font-size:0.48rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase">QTY</span>
+      </div>
+      <div class="bti-actions" style="flex-direction:column;gap:1px">
         <button class="bti-btn flip-btn" data-flip="${t.id}" title="Rotate orientation">⟳</button>
         <button class="bti-btn del-btn" data-del="${t.id}" title="Delete">✕</button>
       </div>
@@ -810,6 +854,8 @@ function renderBTL(){
   el.querySelectorAll('[data-flip]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();flipType(b.dataset.flip);}));
   el.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
     e.stopPropagation();
+    const dt=S.types.find(t=>t.id===b.dataset.del);
+    if(!dt||!confirm(`Delete box type "${dt.sku?dt.sku+' ':''}${dt.name}"?`)) return;
     S.types=S.types.filter(t=>t.id!==b.dataset.del);
     if(S.activeId===b.dataset.del) S.activeId=S.types[0]?.id||null;
     renderBTL(); updStats();
@@ -989,14 +1035,71 @@ function exportSVG(){
   els.push(`<text x="${tx.toFixed(1)}" y="${(ty-10).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="12" font-weight="900" fill="#333" text-anchor="middle" letter-spacing="3">AUTOSTACKER</text>`);
   els.push(`<text x="${tx.toFixed(1)}" y="${(ty+2).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="6" fill="#999" text-anchor="middle" letter-spacing="1">PALLET: ${W}" × ${D}" · ${S.boxes.length} BOXES · ${zLevels.length} LAYERS</text>`);
 
+  // ── PACKING INSTRUCTIONS (right side) ──
+  const instrX=svgW+30;
+  let instrY=20;
+  const iEls=[];
+  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="900" fill="#333" letter-spacing="2">PACKING INSTRUCTIONS</text>`);
+  instrY+=16;
+  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow,sans-serif" font-size="6" fill="#999">Pallet: ${W}" × ${D}" | Max Height: ${zLevels.length>0?Math.max(...zLevels.map((z,i)=>{const bx=S.boxes.find(b=>b.gz===z);return z+(bx?bx.h:0);})):0}" | ${S.boxes.length} boxes</text>`);
+  instrY+=14;
+  iEls.push(`<line x1="${instrX}" y1="${instrY}" x2="${instrX+280}" y2="${instrY}" stroke="#ddd" stroke-width="0.5"/>`);
+  instrY+=10;
+
+  // Per-layer instructions with top-down mini-map
+  const typeMap={};S.types.forEach(t=>{if(t.sku)typeMap[t.sku]=t;typeMap[t.name]=t;});
+  const totalWt={val:0};
+  const mapScale=0.8; // px per inch for mini top-down
+
+  zLevels.forEach((z,li)=>{
+    const layerBoxes2=S.boxes.filter(b=>b.gz===z);
+    if(!layerBoxes2.length) return;
+    const lh=layerBoxes2[0].h;
+
+    // Layer header
+    iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700" fill="#333" letter-spacing="1.5">LAYER ${li+1}</text>`);
+    iEls.push(`<text x="${instrX+55}" y="${instrY}" font-family="JetBrains Mono,monospace" font-size="5.5" fill="#999">z=${z}" → ${z+lh}" (h=${lh}")</text>`);
+    instrY+=10;
+
+    // Mini top-down map for this layer
+    const mapX=instrX, mapY=instrY;
+    const mw=W*mapScale, md=D*mapScale;
+    iEls.push(`<rect x="${mapX}" y="${mapY}" width="${mw}" height="${md}" fill="#f5f5f5" stroke="#ccc" stroke-width="0.5" rx="1"/>`);
+    layerBoxes2.forEach(b=>{
+      iEls.push(`<rect x="${(mapX+b.gx*mapScale).toFixed(1)}" y="${(mapY+b.gy*mapScale).toFixed(1)}" width="${(b.w*mapScale).toFixed(1)}" height="${(b.d*mapScale).toFixed(1)}" fill="${b.color}" fill-opacity="0.6" stroke="${b.color}" stroke-width="0.5" rx="0.5"/>`);
+    });
+    instrY+=md+6;
+
+    // Box list for this layer
+    const groups={};
+    layerBoxes2.forEach(b=>{const k=(b.sku||'')+b.name+b.w+'x'+b.d;if(!groups[k])groups[k]={b,cnt:0};groups[k].cnt++;});
+    Object.values(groups).forEach(g=>{
+      const b=g.b, t=typeMap[b.sku]||typeMap[b.name];
+      const wt=t?t.weight||0:0;
+      totalWt.val+=wt*g.cnt;
+      iEls.push(`<text x="${instrX+4}" y="${instrY}" font-family="Barlow,sans-serif" font-size="5.5" fill="#555">• ${g.cnt}× ${b.sku?b.sku+' ':''}${b.name} (${b.w}"×${b.d}"×${b.h}")${wt?' — '+Math.round(wt*g.cnt*10)/10+'lb':''}</text>`);
+      instrY+=8;
+    });
+    instrY+=6;
+  });
+
+  // Total weight
+  iEls.push(`<line x1="${instrX}" y1="${instrY}" x2="${instrX+280}" y2="${instrY}" stroke="#ddd" stroke-width="0.5"/>`);
+  instrY+=10;
+  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700" fill="#333" letter-spacing="1">TOTAL WEIGHT: ${Math.round(totalWt.val*10)/10} lbs</text>`);
+  instrY+=14;
+
   // Copyright
-  const[cx2,cy2]=eToS(W/2,D+6,-3);
-  els.push(`<text x="${cx2.toFixed(1)}" y="${(cy2+10).toFixed(1)}" font-family="Barlow,sans-serif" font-size="4.5" fill="#aaa" text-anchor="middle">©2026 Vladislav Abramov · SM²ARTA™</text>`);
+  iEls.push(`<text x="${instrX}" y="${instrY}" font-family="Barlow,sans-serif" font-size="4.5" fill="#aaa">©2026 Vladislav Abramov · SM²ARTA™</text>`);
+
+  const totalW=instrX+300;
+  const totalH=Math.max(svgH,instrY+20);
 
   const svg=`<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${svgW.toFixed(0)}" height="${svgH.toFixed(0)}" viewBox="0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}">
+<svg xmlns="http://www.w3.org/2000/svg" width="${totalW.toFixed(0)}" height="${totalH.toFixed(0)}" viewBox="0 0 ${totalW.toFixed(0)} ${totalH.toFixed(0)}">
 <rect width="100%" height="100%" fill="#F0F1F3"/>
 ${els.join('\n')}
+${iEls.join('\n')}
 </svg>`;
 
   const blob=new Blob([svg],{type:'image/svg+xml'});
@@ -1122,7 +1225,7 @@ document.getElementById('applyP').addEventListener('click',()=>{
 });
 document.getElementById('undoBtn').addEventListener('click',undo);
 document.getElementById('redoBtn').addEventListener('click',redo);
-document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.length) return; saveHist(); S.boxes=[]; render(); toast('Cleared'); });
+document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; render(); toast('Cleared'); });
 document.getElementById('exportBtn').addEventListener('click',exportSVG);
 
 window.addEventListener('keydown',e=>{
@@ -1140,6 +1243,8 @@ window.addEventListener('keydown',e=>{
   }
   if((e.key==='m'||e.key==='M')&&!e.ctrlKey&&!e.metaKey){ S.mode=S.mode==='place'?'move':'place'; S.selId=null; updModeUI(); render(); }
   if((e.key==='f'||e.key==='F')&&!e.ctrlKey&&!e.metaKey){ if(S.activeId) flipType(S.activeId); }
+  if((e.key==='q'||e.key==='Q')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+3)&3; render(); toast(`View rotated ${S.viewRot*90}°`); }
+  if((e.key==='e'||e.key==='E')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+1)&3; render(); toast(`View rotated ${S.viewRot*90}°`); }
   if(e.key==='Delete'||e.key==='Backspace'){
     if(!S.boxes.length) return;
     if(S.hGx!==null) removeTop(S.hGx,S.hGy);
