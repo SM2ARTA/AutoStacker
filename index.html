@@ -40,7 +40,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 
 .main{display:flex;flex:1;overflow:hidden}
 
-.lp{width:290px;flex-shrink:0;background:var(--surf);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden}
+.lp{width:400px;flex-shrink:0;background:var(--surf);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden}
 .sec{padding:11px 12px;border-bottom:1px solid var(--bdr);flex-shrink:0}
 .sec-title{font-size:0.58rem;letter-spacing:3px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
 .sec-title span{color:var(--acc);font-family:'JetBrains Mono',monospace}
@@ -161,17 +161,17 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="sec-title">New Box Type</div>
       <div style="display:flex;flex-direction:column;gap:7px">
         <div class="inp-row">
-          <input type="text" class="inp" id="nSku" placeholder="SKU" style="width:70px;flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.68rem">
+          <input type="text" class="inp" id="nSku" placeholder="SKU" style="width:90px;flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.68rem">
           <input type="text" class="inp" id="nName" placeholder="Item name" style="flex:1">
         </div>
         <div>
           <div style="font-size:0.58rem;color:var(--muted);margin-bottom:5px;letter-spacing:1px;text-transform:uppercase">W × D × H &nbsp;<span style="color:var(--acc);font-family:'JetBrains Mono',monospace;font-size:0.6rem">(inches)</span></div>
           <div class="inp-row">
-            <input type="number" class="inp" id="nW" value="24" min="1" max="999" style="width:44px">
+            <input type="number" class="inp" id="nW" value="24" min="1" max="999" style="width:52px">
             <span class="inp-x">×</span>
-            <input type="number" class="inp" id="nD" value="24" min="1" max="999" style="width:44px">
+            <input type="number" class="inp" id="nD" value="24" min="1" max="999" style="width:52px">
             <span class="inp-x">×</span>
-            <input type="number" class="inp" id="nH" value="18" min="1" max="999" style="width:44px">
+            <input type="number" class="inp" id="nH" value="18" min="1" max="999" style="width:52px">
             <input type="color" class="inp" id="nClr" value="#D09040" title="Color">
           </div>
         </div>
@@ -731,7 +731,16 @@ function renderBTL(){
       <div class="bti-sw" style="background:${t.color}"></div>
       <div class="bti-info">
         <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:4px">'+t.sku+'</span>':''}${t.name}</div>
-        <div class="bti-dim">${tw(t)}" × ${td(t)}" × ${th(t)}"${t.weight?' · <b>'+t.weight+'</b>lb':''}${t.flat?' · <span style="color:var(--blue)" title="Flat only — won\'t flip upright">⬌</span>':''}</div>
+        <div class="bti-dim">${tw(t)}" × ${td(t)}" × ${th(t)}"</div>
+        <div class="bti-dim" style="display:flex;align-items:center;gap:4px;margin-top:2px">
+          <input type="number" class="inp" data-wt="${t.id}" value="${t.weight||0}" min="0" max="9999" step="0.1"
+            style="width:44px;padding:2px 3px;font-size:0.6rem;text-align:center;font-family:'JetBrains Mono',monospace;border-color:var(--bdr)"
+            title="Weight (lbs)" onclick="event.stopPropagation()">
+          <span style="font-size:0.55rem;color:var(--muted)">lb</span>
+          <label style="font-size:0.55rem;color:var(--muted);display:flex;align-items:center;gap:2px;cursor:pointer;user-select:none;margin-left:4px" onclick="event.stopPropagation()">
+            <input type="checkbox" data-flat="${t.id}" ${t.flat?'checked':''} style="margin:0"> flat
+          </label>
+        </div>
       </div>
       <input type="number" class="inp" id="abq-${t.id}" value="${prevQtys[t.id]||0}" min="0" max="9999"
         style="width:38px;padding:3px 2px;font-size:0.68rem;text-align:center;font-family:'JetBrains Mono',monospace;flex-shrink:0;border-color:var(--bdr)"
@@ -744,7 +753,7 @@ function renderBTL(){
 
   el.querySelectorAll('.bti').forEach(el=>{
     el.addEventListener('click',e=>{
-      if(e.target.closest('[data-flip],[data-del]')) return;
+      if(e.target.closest('[data-flip],[data-del],[data-wt],[data-flat]')) return;
       S.activeId=el.dataset.id; renderBTL(); updStats(); render();
     });
   });
@@ -755,6 +764,20 @@ function renderBTL(){
     if(S.activeId===b.dataset.del) S.activeId=S.types[0]?.id||null;
     renderBTL(); updStats();
   }));
+  // Inline weight editing
+  el.querySelectorAll('[data-wt]').forEach(inp=>{
+    inp.addEventListener('change',e=>{e.stopPropagation();
+      const t=S.types.find(x=>x.id===inp.dataset.wt);
+      if(t) t.weight=parseFloat(inp.value)||0;
+    });
+  });
+  // Inline flat-only toggle
+  el.querySelectorAll('[data-flat]').forEach(cb=>{
+    cb.addEventListener('change',e=>{e.stopPropagation();
+      const t=S.types.find(x=>x.id===cb.dataset.flat);
+      if(t) t.flat=cb.checked;
+    });
+  });
 }
 
 function flipType(id){
