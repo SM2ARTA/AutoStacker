@@ -2101,9 +2101,11 @@ async function showLoadModal(){
       const id=el.dataset.id;
       try{
         const{data}=await SB.from('shared_state').select('value').eq('id',id).single();
-        if(data){_psbRestore(JSON.parse(data.value));_closeModal();toast('Loaded!');}
-        else toast('Not found');
-      }catch(err){toast('Load error');console.error(err);}
+        if(data){
+          const snap=typeof data.value==='string'?JSON.parse(data.value):data.value;
+          _psbRestore(snap);_closeModal();toast('Loaded!');
+        } else toast('Not found');
+      }catch(err){toast('Load error: '+err.message);console.error(err);}
     });
   });
   box.querySelectorAll('[data-del]').forEach(btn=>{
