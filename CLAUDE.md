@@ -1,7 +1,7 @@
 # Pallet Stack Builder
 
 ## Project Overview
-Interactive isometric pallet stacking visualizer for RGS Events / FWC26. Lets users define box types (W×D×H in inches), place them on a standard pallet, and visualize the stack in real-time with an isometric 3D canvas and a top-down height map.
+Interactive isometric pallet stacking visualizer. Lets users define box types (W×D×H in inches), place them on a standard pallet, and visualize the stack in real-time with an isometric 3D canvas and a top-down height map.
 
 ## Architecture
 - **Single file**: Everything lives in `index.html` (~646 lines). No build step, no bundler, no backend.

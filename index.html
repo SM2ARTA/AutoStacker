@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoStacker — RGS Events</title>
+<title>AutoStacker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -133,7 +133,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
     <button class="btn btn-ghost btn-sm" id="redoBtn" disabled>↪ Redo</button>
     <div style="width:1px;height:18px;background:var(--bdr)"></div>
     <button class="btn btn-danger btn-sm" id="clearBtn">✕ Clear</button>
-    <button class="btn btn-acc btn-sm" id="exportBtn">↓ PNG</button>
+    <button class="btn btn-acc btn-sm" id="exportBtn">↓ SVG</button>
     <div style="width:1px;height:18px;background:var(--bdr)"></div>
     <button class="btn btn-ghost btn-sm" id="saveBtn">💾 Save</button>
     <button class="btn btn-ghost btn-sm" id="loadBtn">📂 Open</button>
@@ -465,10 +465,12 @@ function dropAt(gx,gy){
 // ISO RENDERER
 // ─────────────────────────────────────────────────────
 function drawBox(gx,gy,gz,w,d,h,color,alpha,sel){
-  const A=toS(gx,gy,gz),     B=toS(gx+w,gy,gz);
-  const C=toS(gx+w,gy+d,gz), D=toS(gx,gy+d,gz);
-  const E=toS(gx,gy,gz+h),   F=toS(gx+w,gy,gz+h);
-  const G=toS(gx+w,gy+d,gz+h),H=toS(gx,gy+d,gz+h);
+  const g=0.35; // visual gap between boxes (inches)
+  const x0=gx+g,y0=gy+g,x1=gx+w-g,y1=gy+d-g,z0=gz,z1=gz+h-g*0.5;
+  const A=toS(x0,y0,z0),     B=toS(x1,y0,z0);
+  const C=toS(x1,y1,z0),     D=toS(x0,y1,z0);
+  const E=toS(x0,y0,z1),     F=toS(x1,y0,z1);
+  const G=toS(x1,y1,z1),     H=toS(x0,y1,z1);
   ctx.save(); ctx.globalAlpha=alpha;
   // Back faces first (covered by front faces)
   poly([D,A,E,H], shade(color,.55), true);
@@ -756,6 +758,156 @@ function render(){
 }
 
 // ─────────────────────────────────────────────────────
+// SVG EXPORT — exploded layer-by-layer view
+// ─────────────────────────────────────────────────────
+function exportSVG(){
+  if(!S.boxes.length){toast('Nothing to export');return;}
+  const EXP_GAP=12; // inches of vertical gap between layers
+  const GAP=0.35;    // box inset (same as drawBox)
+  const W=S.palletW,D=S.palletD;
+
+  // Fixed projection for export (independent of canvas zoom/pan)
+  const EZ=1.0; // export zoom
+  const eBCW=5.0*EZ, eBCH=2.5*EZ, eBZH=7.0*EZ;
+  // We'll compute origin after knowing bounds
+  let eOx=0, eOy=0;
+  function eToS(gx,gy,gz){ return [eOx+(gx-gy)*eBCW, eOy+(gx+gy)*eBCH-gz*eBZH]; }
+
+  // Compute unique layers and explosion offsets
+  const zLevels=[...new Set(S.boxes.map(b=>b.gz))].sort((a,b)=>a-b);
+  const layerIdx={};
+  zLevels.forEach((z,i)=>{layerIdx[z]=i;});
+
+  // Build exploded box copies
+  const exploded=S.boxes.map(b=>({
+    ...b,
+    _ez:b.gz + (layerIdx[b.gz]||0)*EXP_GAP
+  }));
+
+  // Sort for correct draw order using same logic as isoSort but with _ez
+  const sorted=(function(boxes){
+    const n=boxes.length;if(n<=1)return boxes.slice();
+    const fwd=Array.from({length:n},()=>[]);const deg=new Uint16Array(n);
+    for(let i=0;i<n;i++){
+      const a=boxes[i],axe=a.gx+a.w,aye=a.gy+a.d,aze=a._ez+a.h;
+      for(let j=i+1;j<n;j++){
+        const b=boxes[j],bxe=b.gx+b.w,bye=b.gy+b.d,bze=b._ez+b.h;
+        const ab=axe<=b.gx||aye<=b.gy||aze<=b._ez;
+        const ba=bxe<=a.gx||bye<=a.gy||bze<=a._ez;
+        if(ab&&!ba){fwd[i].push(j);deg[j]++;}
+        else if(ba&&!ab){fwd[j].push(i);deg[i]++;}
+      }
+    }
+    const q=[],out=[];
+    for(let i=0;i<n;i++)if(!deg[i])q.push(i);
+    while(q.length){const u=q.pop();out.push(boxes[u]);for(const v of fwd[u])if(!--deg[v])q.push(v);}
+    if(out.length<n){const s=new Set(out);for(const b of boxes)if(!s.has(b))out.push(b);}
+    return out;
+  })(exploded);
+
+  // Collect all points to compute bounds
+  const allPts=[];
+  function addPt(gx,gy,gz){const p=eToS(gx,gy,gz);allPts.push(p);return p;}
+
+  // Dry run to collect bounds (with origin at 0,0)
+  // Pallet
+  addPt(-1,-1,-3);addPt(W+1,-1,-3);addPt(W+1,D+1,-3);addPt(-1,D+1,-3);
+  addPt(-1,-1,0);addPt(W+1,-1,0);addPt(W+1,D+1,0);addPt(-1,D+1,0);
+  // Boxes
+  const maxEz=sorted.reduce((m,b)=>Math.max(m,b._ez+b.h),0);
+  addPt(0,0,maxEz+2);addPt(W,D,maxEz+2);
+  sorted.forEach(b=>{
+    addPt(b.gx,b.gy,b._ez+b.h);addPt(b.gx+b.w,b.gy+b.d,b._ez);
+  });
+
+  const xs=allPts.map(p=>p[0]),ys=allPts.map(p=>p[1]);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const pad=20;
+  eOx=-minX+pad; eOy=-minY+pad;
+  const svgW=maxX-minX+pad*2, svgH=maxY-minY+pad*2;
+
+  // SVG builder
+  const els=[];
+  function svgPoly(pts,fill,stroke){
+    const d=pts.map((p,i)=>`${i?'L':'M'}${eToS(...p).map(v=>v.toFixed(1)).join(',')}`).join('')+'Z';
+    els.push(`<path d="${d}" fill="${fill}" stroke="${stroke||'rgba(0,0,0,0.25)'}" stroke-width="0.5"/>`);
+  }
+  function eShade(hex,f){const[r,g,b]=hexRgb(hex);return`rgb(${cl(r*f)},${cl(g*f)},${cl(b*f)})`;}
+
+  // Draw pallet
+  svgPoly([[-1,D+1,-3],[-1,-1,-3],[-1,-1,0],[-1,D+1,0]],'#C9A46E');
+  svgPoly([[-1,D+1,-3],[W+1,D+1,-3],[W+1,D+1,0],[-1,D+1,0]],'#A8834A');
+  svgPoly([[-1,-1,-3],[W+1,-1,-3],[W+1,-1,0],[-1,-1,0]],'#B89258');
+  svgPoly([[W+1,-1,-3],[W+1,D+1,-3],[W+1,D+1,0],[W+1,-1,0]],'#9C7840');
+  svgPoly([[-1,-1,0],[W+1,-1,0],[W+1,D+1,0],[-1,D+1,0]],'#DDB87A');
+
+  // Draw pallet grid
+  let gridEls='';
+  for(let i=0;i<=W;i+=12){
+    const[x1,y1]=eToS(i,0,0),[x2,y2]=eToS(i,D,0);
+    gridEls+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(0,0,0,0.08)" stroke-width="0.4"/>`;
+  }
+  for(let j=0;j<=D;j+=12){
+    const[x1,y1]=eToS(0,j,0),[x2,y2]=eToS(W,j,0);
+    gridEls+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(0,0,0,0.08)" stroke-width="0.4"/>`;
+  }
+  els.push(gridEls);
+
+  // Draw boxes
+  sorted.forEach(b=>{
+    const g=GAP, x0=b.gx+g,y0=b.gy+g,x1=b.gx+b.w-g,y1=b.gy+b.d-g;
+    const z0=b._ez,z1=b._ez+b.h-g*0.5;
+    const c=b.color;
+    // Back faces
+    svgPoly([[x0,y1,z0],[x0,y0,z0],[x0,y0,z1],[x0,y1,z1]],eShade(c,.55));
+    svgPoly([[x1,y1,z0],[x0,y1,z0],[x0,y1,z1],[x1,y1,z1]],eShade(c,.32));
+    // Front faces
+    svgPoly([[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]],eShade(c,.68));
+    svgPoly([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]],eShade(c,.40));
+    // Top face
+    svgPoly([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],eShade(c,1.14));
+    // Dimension label on top
+    if((b.w+b.d)>14){
+      const cx=eToS((x0+x1)/2,(y0+y1)/2,z1);
+      els.push(`<text x="${cx[0].toFixed(1)}" y="${cx[1].toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="600" fill="rgba(0,0,0,0.4)" text-anchor="middle" dominant-baseline="middle">${b.w}"×${b.d}"×${b.h}"</text>`);
+    }
+  });
+
+  // Layer labels on the left
+  const layerBoxes={};
+  S.boxes.forEach(b=>{if(!layerBoxes[b.gz])layerBoxes[b.gz]=b;});
+  zLevels.forEach((z,i)=>{
+    const ez=z+(i*EXP_GAP);
+    const b=layerBoxes[z];
+    const h=b?b.h:0;
+    const[lx,ly]=eToS(-4,D/2,ez+h/2);
+    els.push(`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="6.5" font-weight="700" fill="#666" text-anchor="end" dominant-baseline="middle" letter-spacing="1">LAYER ${i+1}</text>`);
+  });
+
+  // Title
+  const[tx,ty]=eToS(W/2,-6,maxEz+EXP_GAP);
+  els.push(`<text x="${tx.toFixed(1)}" y="${(ty-10).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="12" font-weight="900" fill="#333" text-anchor="middle" letter-spacing="3">AUTOSTACKER</text>`);
+  els.push(`<text x="${tx.toFixed(1)}" y="${(ty+2).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="6" fill="#999" text-anchor="middle" letter-spacing="1">PALLET: ${W}" × ${D}" · ${S.boxes.length} BOXES · ${zLevels.length} LAYERS</text>`);
+
+  // Copyright
+  const[cx2,cy2]=eToS(W/2,D+6,-3);
+  els.push(`<text x="${cx2.toFixed(1)}" y="${(cy2+10).toFixed(1)}" font-family="Barlow,sans-serif" font-size="4.5" fill="#aaa" text-anchor="middle">©2026 Vladislav Abramov · SM²ARTA™</text>`);
+
+  const svg=`<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${svgW.toFixed(0)}" height="${svgH.toFixed(0)}" viewBox="0 0 ${svgW.toFixed(0)} ${svgH.toFixed(0)}">
+<rect width="100%" height="100%" fill="#F0F1F3"/>
+${els.join('\n')}
+</svg>`;
+
+  const blob=new Blob([svg],{type:'image/svg+xml'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`pallet-${Date.now()}.svg`;
+  a.click();
+  toast('SVG exported!');
+}
+
+// ─────────────────────────────────────────────────────
 // EVENTS
 // ─────────────────────────────────────────────────────
 function gridPos(e){
@@ -838,11 +990,7 @@ document.getElementById('applyP').addEventListener('click',()=>{
 document.getElementById('undoBtn').addEventListener('click',undo);
 document.getElementById('redoBtn').addEventListener('click',redo);
 document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.length) return; saveHist(); S.boxes=[]; render(); toast('Cleared'); });
-document.getElementById('exportBtn').addEventListener('click',()=>{
-  const hx=S.hGx,hy=S.hGy,hs=S.selId; S.hGx=null; S.hGy=null; S.selId=null; renderIso();
-  S.hGx=hx; S.hGy=hy; S.selId=hs;
-  isoC.toBlob(blob=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`pallet-${Date.now()}.png`; a.click(); render(); toast('PNG exported!'); });
-});
+document.getElementById('exportBtn').addEventListener('click',exportSVG);
 
 window.addEventListener('keydown',e=>{
   // If a modal is open, only handle Escape to close it
