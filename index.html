@@ -475,7 +475,7 @@ function autoBuild(){
   const ohW=overhang?Math.floor(PW*0.25):0, ohD=overhang?Math.floor(PD*0.25):0;
   const effW=PW+ohW, effD=PD+ohD;
 
-  // For each type, find best orientation (maximize footprint fit)
+  // For each type, find best orientation
   const typeGroups=[];
   const warns=[];
   for(const item of items){
@@ -488,46 +488,63 @@ function autoBuild(){
       const key=fw+','+fd+','+fh;
       if(seen.has(key))continue;seen.add(key);
       if(fh>maxH)continue;
-      const layout=_abLayouts(fw,fd,overhang);
-      if(!layout)continue;
-      // Score: most boxes per layer wins, then shortest height
-      if(!bestOri||layout.length>bestOri.layout.length||(layout.length===bestOri.layout.length&&fh<bestOri.fh))
-        bestOri={fw,fd,fh,area:fw*fd,layout};
+      if(fw>effW&&fd>effW)continue;if(fd>effD&&fw>effD)continue;
+      // Pick orientation: fits pallet, prefer largest footprint area
+      const canFit=(fw<=effW&&fd<=effD)||(fd<=effW&&fw<=effD);
+      if(!canFit)continue;
+      // Ensure fw<=effW, fd<=effD (swap if needed)
+      let uw=fw,ud=fd;
+      if(uw>effW){uw=fd;ud=fw;}
+      const area=uw*ud;
+      if(!bestOri||area>bestOri.area) bestOri={fw:uw,fd:ud,fh,area};
     }
     if(!bestOri){warns.push(`${t.sku||t.name}: too large`);continue;}
-    typeGroups.push({t,qty:item.qty,layout:bestOri.layout,fh:bestOri.fh,fw:bestOri.fw,fd:bestOri.fd,
-      perLayer:bestOri.layout.length,area:bestOri.area});
+    typeGroups.push({t,qty:item.qty,fw:bestOri.fw,fd:bestOri.fd,fh:bestOri.fh,area:bestOri.area});
   }
 
-  // ── LAYER-BASED PACKER (human-style: neat uniform layers per type) ──
+  // ── HUMAN-STYLE PACKER ──
   // Sort: biggest footprint on bottom, then heaviest
   typeGroups.sort((a,b)=>(b.area-a.area)||((b.t.weight||0)-(a.t.weight||0)));
 
+  // Use a heightmap to place each box at the lowest available spot
+  const hmap=Array.from({length:effD},()=>new Float32Array(effW));
+
+  function findLowest(bw,bd,bh,swap){
+    let bestGx=-1,bestGy=-1,bestZ=Infinity,bestW=bw,bestD=bd;
+    const rots=(swap&&bw!==bd)?[[bd,bw],[bw,bd]]:[[bw,bd],[bd,bw]];
+    for(const[w,d]of rots){
+      if(w>effW||d>effD)continue;
+      for(let gy=0;gy<=effD-d;gy++) for(let gx=0;gx<=effW-w;gx++){
+        let mz=0;
+        for(let dy=0;dy<d;dy++) for(let dx=0;dx<w;dx++) mz=Math.max(mz,hmap[gy+dy][gx+dx]);
+        if(mz+bh<=maxH&&mz<bestZ){bestZ=mz;bestGx=gx;bestGy=gy;bestW=w;bestD=d;
+          if(bestZ===0)return{gx:bestGx,gy:bestGy,gz:0,w:bestW,d:bestD};}
+      }
+    }
+    return bestGx>=0?{gx:bestGx,gy:bestGy,gz:bestZ,w:bestW,d:bestD}:null;
+  }
+
   saveHist();
   S.boxes=[];
-  let z=0,total=0,totalWt=0;
+  let total=0,totalWt=0;
+  // Track layers for interlocking
+  const gzSeen=new Set();let swap=false;
 
+  // Place type by type (biggest first), all qty of one type before next
   for(const grp of typeGroups){
-    let placed=0,layerNum=0;
-    // Compute alternate layout for interlocking
-    const altLayout=(interlock&&grp.fw!==grp.fd)?_abLayouts(grp.fd,grp.fw,overhang):null;
-
-    while(placed<grp.qty&&z+grp.fh<=maxH){
-      const layerWt=(grp.t.weight||0)*Math.min(grp.perLayer,grp.qty-placed);
-      if(totalWt+layerWt>maxWt) break;
-      // Interlock: alternate layout rotation on odd layers
-      const useLayout=(altLayout&&layerNum%2===1)?altLayout:grp.layout;
-      let cnt=0;
-      for(const c of useLayout){
-        if(placed>=grp.qty) break;
-        S.boxes.push({id:S.nxtId++,gx:c.gx,gy:c.gy,gz:z,
-          w:c.w,d:c.d,h:grp.fh,color:grp.t.color,sku:grp.t.sku||'',name:grp.t.name});
-        placed++; cnt++;
-      }
-      totalWt+=(grp.t.weight||0)*cnt;
-      z+=grp.fh; layerNum++;
+    let placed=0;
+    while(placed<grp.qty){
+      if(totalWt+(grp.t.weight||0)>maxWt) break;
+      const pos=findLowest(grp.fw,grp.fd,grp.fh,swap);
+      if(!pos) break;
+      // Interlock: toggle swap at new height levels
+      if(interlock&&!gzSeen.has(pos.gz)){gzSeen.add(pos.gz);if(gzSeen.size>1)swap=!swap;}
+      S.boxes.push({id:S.nxtId++,gx:pos.gx,gy:pos.gy,gz:pos.gz,
+        w:pos.w,d:pos.d,h:grp.fh,color:grp.t.color,sku:grp.t.sku||'',name:grp.t.name});
+      for(let dy=0;dy<pos.d;dy++) for(let dx=0;dx<pos.w;dx++)
+        hmap[pos.gy+dy][pos.gx+dx]=pos.gz+grp.fh;
+      placed++;total++;totalWt+=(grp.t.weight||0);
     }
-    total+=placed;
     if(placed<grp.qty) warns.push(`${grp.t.sku||grp.t.name}: ${placed}/${grp.qty}`);
   }
 
