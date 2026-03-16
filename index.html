@@ -139,6 +139,8 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
     <button class="btn btn-ghost btn-sm" id="undoBtn" disabled>↩ Undo</button>
     <button class="btn btn-ghost btn-sm" id="redoBtn" disabled>↪ Redo</button>
     <div style="width:1px;height:18px;background:var(--bdr)"></div>
+    <button class="btn btn-ghost btn-sm" id="dupLayerBtn" title="Copy top layer and stack it on top [L]">⧉ Dup Layer</button>
+    <button class="btn btn-ghost btn-sm" id="rmLayerBtn" title="Remove top layer [R]" style="color:var(--red)">⊖ Rm Layer</button>
     <button class="btn btn-danger btn-sm" id="clearBtn">✕ Clear</button>
     <button class="btn btn-acc btn-sm" id="exportBtn">↓ SVG</button>
     <div style="width:1px;height:18px;background:var(--bdr)"></div>
@@ -205,7 +207,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       </div>
       <div class="inp-row" style="margin-bottom:4px">
         <span class="inp-lbl">Max H</span>
-        <input type="number" class="inp" id="abMaxH" value="96" min="1" max="999" style="width:48px">
+        <input type="number" class="inp" id="abMaxH" value="86" min="1" max="999" style="width:48px">
         <span style="font-size:0.6rem;color:var(--muted)">in</span>
         <span class="inp-lbl" style="margin-left:8px">Max Wt</span>
         <input type="number" class="inp" id="abMaxWt" value="2500" min="1" max="99999" style="width:56px">
@@ -250,6 +252,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="tb-spacer"></div>
       <kbd>F</kbd><span style="font-size:0.6rem;color:var(--muted)">rotate</span>&nbsp;
       <kbd>M</kbd><span style="font-size:0.6rem;color:var(--muted)">move</span>&nbsp;
+      <kbd>L</kbd><span style="font-size:0.6rem;color:var(--muted)">dup layer</span>&nbsp;
       <kbd>Q</kbd><kbd>E</kbd><span style="font-size:0.6rem;color:var(--muted)">rotate view</span>&nbsp;
       <kbd>Del</kbd><span style="font-size:0.6rem;color:var(--muted)">remove</span>&nbsp;
       <kbd>Esc</kbd><span style="font-size:0.6rem;color:var(--muted)">cancel</span>&nbsp;
@@ -500,7 +503,8 @@ function autoBuild(){
   }
 
   // Sort: heaviest first (bottom), then largest footprint
-  plans.sort((a,b)=>(b.t.weight||0)-(a.t.weight||0)||(b.fw||0)*(b.fd||0)-(a.fw||0)*(a.fd||0));
+  // Sort: biggest footprint first (bottom), then heaviest
+  plans.sort((a,b)=>((b.fw||0)*(b.fd||0))-((a.fw||0)*(a.fd||0))||((b.t.weight||0)-(a.t.weight||0)));
 
   const maxWt=parseFloat(document.getElementById('abMaxWt').value)||99999;
 
@@ -574,32 +578,31 @@ function aiOptimize(){
     }
   }
 
-  if(!candidates.length){toast('No types fit on pallet');return;}
+  const skipped=selected.filter(t=>!candidates.find(c=>c.t.id===t.id));
+  if(skipped.length) toast(`Skipped (too large for pallet): ${skipped.map(t=>t.sku||t.name).join(', ')}`);
+  if(!candidates.length){toast('No selected types fit on pallet');return;}
 
-  // Greedy fill: repeatedly add a layer of the most efficient type that fits
-  // Sort by efficiency (boxes per inch), break ties by weight efficiency
-  candidates.sort((a,b)=>b.eff-a.eff||(a.layerWt/(a.perLayer||1))-(b.layerWt/(b.perLayer||1)));
-
-  let remH=maxH, remWt=maxWt;
-  const qtys={};
-  let totalBoxes=0, totalLayers=0;
-
-  while(remH>0){
-    let added=false;
+  // Find max N where N units of EACH selected type fit within height + weight
+  // For N units of type i: needs ceil(N/perLayer_i) layers, height = ceil(N/perLayer_i) * fh_i
+  let bestN=0;
+  for(let n=1;n<=5000;n++){
+    let totalH=0,totalW=0;
     for(const c of candidates){
-      if(c.fh<=remH&&c.layerWt<=remWt){
-        if(!qtys[c.t.id]) qtys[c.t.id]=0;
-        qtys[c.t.id]+=c.perLayer;
-        remH-=c.fh;
-        remWt-=c.layerWt;
-        totalBoxes+=c.perLayer;
-        totalLayers++;
-        added=true;
-        break;
-      }
+      totalH+=Math.ceil(n/c.perLayer)*c.fh;
+      totalW+=n*(c.t.weight||0);
     }
-    if(!added) break;
+    if(totalH>maxH||totalW>maxWt) break;
+    bestN=n;
   }
+  if(!bestN){toast('Can\'t fit even 1 of each type');return;}
+
+  const qtys={};
+  let totalBoxes=0,totalLayers=0;
+  candidates.forEach(c=>{
+    qtys[c.t.id]=bestN;
+    totalBoxes+=bestN;
+    totalLayers+=Math.ceil(bestN/c.perLayer);
+  });
 
   // Set qty fields
   S.types.forEach(t=>{
@@ -905,7 +908,7 @@ function renderBTL(){
   document.getElementById('typeCnt').textContent=`(${S.types.length})`;
   el.innerHTML=S.types.map(t=>`
     <div class="bti${t.id===S.activeId?' active':''}${(t.orient||0)>0?' flipped':''}" data-id="${t.id}">
-      <input type="checkbox" data-sel="${t.id}" checked style="margin:0;accent-color:var(--acc);flex-shrink:0" title="Include in Optimize" onclick="event.stopPropagation()">
+      <input type="checkbox" data-sel="${t.id}" style="margin:0;accent-color:var(--acc);flex-shrink:0" title="Include in Optimize" onclick="event.stopPropagation()">
       <div class="bti-sw" style="background:${t.color}"></div>
       <div class="bti-info">
         <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:5px">'+t.sku+'</span>':''}${t.name}</div>
@@ -1099,10 +1102,12 @@ function exportSVG(){
     svgPoly([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]],eShade(c,.40));
     // Top face
     svgPoly([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],eShade(c,1.14));
-    // Dimension label on top
+    // Product name + dimension label on top
     if((b.w+b.d)>14){
       const cx=eToS((x0+x1)/2,(y0+y1)/2,z1);
-      els.push(`<text x="${cx[0].toFixed(1)}" y="${cx[1].toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="600" fill="rgba(0,0,0,0.4)" text-anchor="middle" dominant-baseline="middle">${b.w}"×${b.d}"×${b.h}"</text>`);
+      const label=b.sku||b.name||'';
+      els.push(`<text x="${cx[0].toFixed(1)}" y="${(cx[1]-4).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="6" font-weight="700" fill="rgba(0,0,0,0.5)" text-anchor="middle" dominant-baseline="middle">${label}</text>`);
+      els.push(`<text x="${cx[0].toFixed(1)}" y="${(cx[1]+3).toFixed(1)}" font-family="JetBrains Mono,monospace" font-size="5" fill="rgba(0,0,0,0.35)" text-anchor="middle" dominant-baseline="middle">${b.w}"×${b.d}"×${b.h}"</text>`);
     }
   });
 
@@ -1129,11 +1134,15 @@ function exportSVG(){
   function ohLine(x1,y1,x2,y2,label,side){
     const p1=eToS(x1,y1,0),p2=eToS(x2,y2,0);
     const mx=(p1[0]+p2[0])/2,my=(p1[1]+p2[1])/2;
-    els.push(`<line x1="${p1[0].toFixed(1)}" y1="${p1[1].toFixed(1)}" x2="${p2[0].toFixed(1)}" y2="${p2[1].toFixed(1)}" stroke="#C62828" stroke-width="1" stroke-dasharray="3,2"/>`);
-    // End ticks
-    els.push(`<circle cx="${p1[0].toFixed(1)}" cy="${p1[1].toFixed(1)}" r="1.5" fill="#C62828"/>`);
-    els.push(`<circle cx="${p2[0].toFixed(1)}" cy="${p2[1].toFixed(1)}" r="1.5" fill="#C62828"/>`);
-    els.push(`<text x="${mx.toFixed(1)}" y="${(my-4).toFixed(1)}" font-family="JetBrains Mono,monospace" font-size="5.5" font-weight="600" fill="#C62828" text-anchor="middle">${label}" overhang</text>`);
+    // Thick red line
+    els.push(`<line x1="${p1[0].toFixed(1)}" y1="${p1[1].toFixed(1)}" x2="${p2[0].toFixed(1)}" y2="${p2[1].toFixed(1)}" stroke="#C62828" stroke-width="2.5" stroke-dasharray="5,3"/>`);
+    // Arrow end markers
+    els.push(`<circle cx="${p1[0].toFixed(1)}" cy="${p1[1].toFixed(1)}" r="3" fill="#C62828"/>`);
+    els.push(`<circle cx="${p2[0].toFixed(1)}" cy="${p2[1].toFixed(1)}" r="3" fill="#C62828"/>`);
+    // Label with background pill
+    const tw=label.length*4+52, th=14;
+    els.push(`<rect x="${(mx-tw/2).toFixed(1)}" y="${(my-th-4).toFixed(1)}" width="${tw}" height="${th}" rx="3" fill="#C62828"/>`);
+    els.push(`<text x="${mx.toFixed(1)}" y="${(my-th/2+1.5).toFixed(1)}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700" fill="#fff" text-anchor="middle" letter-spacing="0.5">⚠ ${label}" OVERHANG</text>`);
   }
   if(ohLeft>0) ohLine(-ohLeft,D/2,0,D/2,ohLeft.toFixed(1),'left');
   if(ohRight>0) ohLine(W,D/2,W+ohRight,D/2,ohRight.toFixed(1),'right');
@@ -1257,18 +1266,21 @@ function gridPos(e){
     if(b.gy+b.d>S.palletD) oh=Math.max(oh,b.gy+b.d-S.palletD);
   });
   const maxGx=(bw?S.palletW-bw:S.palletW-1)+oh, maxGy=(bd?S.palletD-bd:S.palletD-1)+oh;
-  // Smart snap: box-size multiples + pallet edges + existing box edges
+  // 1-inch grid with magnetic edge snapping (snap to edges when close)
   function snap(rawGx,rawGy){
+    const MAGNET=3; // snap distance in inches
+    // Default: round to nearest inch
+    let bx=Math.round(rawGx), by=Math.round(rawGy);
+    // Collect magnetic snap candidates
     const xC=new Set([0]),yC=new Set([0]);
-    // Pallet-edge-minus-box (last position that fits flush)
     if(bw>0){xC.add(S.palletW-bw);for(let x=-oh;x<=S.palletW+oh;x+=bw)xC.add(x);}
     if(bd>0){yC.add(S.palletD-bd);for(let y=-oh;y<=S.palletD+oh;y+=bd)yC.add(y);}
-    // Existing box edges (align to what's already placed)
     S.boxes.forEach(b=>{xC.add(b.gx);xC.add(b.gx+b.w);yC.add(b.gy);yC.add(b.gy+b.d);});
-    let bx=Math.round(rawGx),dx=Infinity;
-    for(const x of xC){const d=Math.abs(rawGx-x);if(d<dx){dx=d;bx=x;}}
-    let by=Math.round(rawGy),dy=Infinity;
-    for(const y of yC){const d=Math.abs(rawGy-y);if(d<dy){dy=d;by=y;}}
+    // Snap to nearest edge only if within magnet distance
+    let bestDx=MAGNET;
+    for(const x of xC){const d=Math.abs(rawGx-x);if(d<bestDx){bestDx=d;bx=x;}}
+    let bestDy=MAGNET;
+    for(const y of yC){const d=Math.abs(rawGy-y);if(d<bestDy){bestDy=d;by=y;}}
     return [Math.max(-oh,Math.min(maxGx,bx)),Math.max(-oh,Math.min(maxGy,by))];
   }
 
@@ -1350,6 +1362,33 @@ document.getElementById('applyP').addEventListener('click',()=>{
 });
 document.getElementById('undoBtn').addEventListener('click',undo);
 document.getElementById('redoBtn').addEventListener('click',redo);
+document.getElementById('dupLayerBtn').addEventListener('click',()=>{
+  if(!S.boxes.length){toast('No boxes to duplicate');return;}
+  // Find the topmost layer (highest gz)
+  const topZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz),0);
+  const topLayer=S.boxes.filter(b=>b.gz===topZ);
+  if(!topLayer.length) return;
+  const layerH=topLayer[0].h;
+  const newZ=topZ+layerH;
+  const maxH=parseInt(document.getElementById('abMaxH').value)||96;
+  if(newZ+layerH>maxH){toast(`Can't duplicate — would exceed max height ${maxH}"`);return;}
+  saveHist();
+  topLayer.forEach(b=>{
+    S.boxes.push({id:S.nxtId++,gx:b.gx,gy:b.gy,gz:newZ,w:b.w,d:b.d,h:b.h,color:b.color,sku:b.sku||'',name:b.name});
+  });
+  render();
+  toast(`Duplicated ${topLayer.length} boxes → layer at ${newZ}"`);
+});
+document.getElementById('rmLayerBtn').addEventListener('click',()=>{
+  if(!S.boxes.length){toast('No boxes');return;}
+  const topZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz),0);
+  const topLayer=S.boxes.filter(b=>b.gz===topZ);
+  if(!topLayer.length) return;
+  saveHist();
+  S.boxes=S.boxes.filter(b=>b.gz!==topZ);
+  render();
+  toast(`Removed ${topLayer.length} boxes from top layer`);
+});
 document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; render(); toast('Cleared'); });
 document.getElementById('exportBtn').addEventListener('click',exportSVG);
 
@@ -1368,6 +1407,8 @@ window.addEventListener('keydown',e=>{
   }
   if((e.key==='m'||e.key==='M')&&!e.ctrlKey&&!e.metaKey){ S.mode=S.mode==='place'?'move':'place'; S.selId=null; updModeUI(); render(); }
   if((e.key==='f'||e.key==='F')&&!e.ctrlKey&&!e.metaKey){ if(S.activeId) flipType(S.activeId); }
+  if((e.key==='l'||e.key==='L')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('dupLayerBtn').click(); }
+  if((e.key==='r'||e.key==='R')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('rmLayerBtn').click(); }
   if((e.key==='q'||e.key==='Q')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+3)&3; render(); toast(`View rotated ${S.viewRot*90}°`); }
   if((e.key==='e'||e.key==='E')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+1)&3; render(); toast(`View rotated ${S.viewRot*90}°`); }
   if(e.key==='Delete'||e.key==='Backspace'){
