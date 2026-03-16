@@ -158,19 +158,19 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
     <div class="sec-compact" style="padding:10px 14px 8px">
       <div class="sec-title" style="margin-bottom:6px">Pallet</div>
       <div class="inp-row" style="margin-bottom:6px">
-        <input type="number" class="inp" id="pw" value="48" min="12" max="120" style="width:46px">
+        <input type="number" class="inp" id="pw" value="48" min="12" max="120" style="flex:1;min-width:40px">
         <span class="inp-x">×</span>
-        <input type="number" class="inp" id="pd" value="40" min="12" max="120" style="width:46px">
+        <input type="number" class="inp" id="pd" value="40" min="12" max="120" style="flex:1;min-width:40px">
         <span class="inp-lbl">in</span>
         <button class="btn btn-ghost btn-sm" id="applyP" style="padding:3px 7px" title="Apply">↻</button>
-        <div style="flex:1"></div>
+        <div style="width:1px;height:16px;background:var(--bdr);flex-shrink:0"></div>
         <span class="inp-lbl">H</span>
-        <input type="number" class="inp" id="abMaxH" value="86" min="1" max="999" style="width:42px">
+        <input type="number" class="inp" id="abMaxH" value="86" min="1" max="999" style="flex:1;min-width:36px">
         <span class="inp-lbl">Wt</span>
-        <input type="number" class="inp" id="abMaxWt" value="2500" min="1" max="99999" style="width:50px">
+        <input type="number" class="inp" id="abMaxWt" value="2500" min="1" max="99999" style="flex:1.2;min-width:44px">
         <span class="inp-lbl">lb</span>
       </div>
-      <div style="display:flex;align-items:center;gap:4px">
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
         <button class="preset-btn" onclick="document.getElementById('pw').value=48;document.getElementById('pd').value=40;document.getElementById('applyP').click()">48×40</button>
         <button class="preset-btn" onclick="document.getElementById('pw').value=48;document.getElementById('pd').value=48;document.getElementById('applyP').click()">48×48</button>
         <button class="preset-btn" onclick="document.getElementById('pw').value=96;document.getElementById('pd').value=48;document.getElementById('applyP').click()">96×48</button>
@@ -189,24 +189,23 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
     <div class="sec-compact" style="padding:8px 14px">
       <div class="sec-title" style="margin-bottom:6px">Add Box Type</div>
       <div class="inp-row" style="margin-bottom:5px">
-        <input type="text" class="inp" id="nSku" placeholder="SKU" style="width:80px;flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.65rem">
-        <input type="text" class="inp" id="nName" placeholder="Item name" style="flex:1">
+        <input type="text" class="inp" id="nSku" placeholder="SKU" style="flex:1;min-width:60px;font-family:'JetBrains Mono',monospace;font-size:0.65rem">
+        <input type="text" class="inp" id="nName" placeholder="Item name" style="flex:2;min-width:80px">
         <input type="color" class="inp" id="nClr" value="#D09040" title="Color" style="width:28px;height:26px;padding:1px;flex-shrink:0">
       </div>
       <div class="inp-row">
-        <input type="number" class="inp" id="nW" value="24" min="1" max="999" style="width:48px" placeholder="W">
+        <input type="number" class="inp" id="nW" value="24" min="1" max="999" style="flex:1;min-width:36px" placeholder="W">
         <span class="inp-x">×</span>
-        <input type="number" class="inp" id="nD" value="24" min="1" max="999" style="width:48px" placeholder="D">
+        <input type="number" class="inp" id="nD" value="24" min="1" max="999" style="flex:1;min-width:36px" placeholder="D">
         <span class="inp-x">×</span>
-        <input type="number" class="inp" id="nH" value="18" min="1" max="999" style="width:48px" placeholder="H">
+        <input type="number" class="inp" id="nH" value="18" min="1" max="999" style="flex:1;min-width:36px" placeholder="H">
         <span class="inp-lbl">in</span>
         <div style="width:1px;height:16px;background:var(--bdr);flex-shrink:0"></div>
-        <input type="number" class="inp" id="nWt" value="0" min="0" max="9999" step="0.1" style="width:46px" placeholder="0">
+        <input type="number" class="inp" id="nWt" value="0" min="0" max="9999" step="0.1" style="flex:1;min-width:36px" placeholder="Wt">
         <span class="inp-lbl">lb</span>
         <div style="width:1px;height:16px;background:var(--bdr);flex-shrink:0"></div>
         <label class="chk-label"><input type="checkbox" id="nFlat"> Flat</label>
-        <div style="flex:1"></div>
-        <button class="btn btn-acc btn-sm" id="addTypeBtn" style="padding:4px 12px;white-space:nowrap">+ Add</button>
+        <button class="btn btn-acc btn-sm" id="addTypeBtn" style="padding:4px 12px;white-space:nowrap;margin-left:auto">+ Add</button>
       </div>
     </div>
 
@@ -834,8 +833,8 @@ function renderTop(){
   [...S.boxes].sort((a,b)=>(b.gz+b.h)-(a.gz+a.h)).forEach(b=>{
     const t=typeMap[b.sku]||typeMap[b.name];
     const bwt=(t&&t.weight)?t.weight/(b.w*b.d):0; // weight per sq inch
-    for(let dy=0;dy<b.d;dy++) for(let dx=0;dx<b.w;dx++){
-      const x=b.gx+dx,y=b.gy+dy;
+    const bx0=Math.floor(b.gx),by0=Math.floor(b.gy),bx1=Math.ceil(b.gx+b.w),by1=Math.ceil(b.gy+b.d);
+    for(let y=by0;y<by1;y++) for(let x=bx0;x<bx1;x++){
       if(x>=0&&x<W&&y>=0&&y<D){
         if(b.gz+b.h>=hmap[y][x]){ hmap[y][x]=b.gz+b.h; cmap[y][x]=b.color; }
         wmap[y][x]+=bwt;
