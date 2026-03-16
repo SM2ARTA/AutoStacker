@@ -40,7 +40,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 
 .main{display:flex;flex:1;overflow:hidden}
 
-.lp{width:238px;flex-shrink:0;background:var(--surf);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden}
+.lp{width:290px;flex-shrink:0;background:var(--surf);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden}
 .sec{padding:11px 12px;border-bottom:1px solid var(--bdr);flex-shrink:0}
 .sec-title{font-size:0.58rem;letter-spacing:3px;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
 .sec-title span{color:var(--acc);font-family:'JetBrains Mono',monospace}
@@ -160,7 +160,10 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
     <div class="sec">
       <div class="sec-title">New Box Type</div>
       <div style="display:flex;flex-direction:column;gap:7px">
-        <input type="text" class="inp" id="nName" placeholder="e.g. Chair Box">
+        <div class="inp-row">
+          <input type="text" class="inp" id="nSku" placeholder="SKU" style="width:70px;flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.68rem">
+          <input type="text" class="inp" id="nName" placeholder="Item name" style="flex:1">
+        </div>
         <div>
           <div style="font-size:0.58rem;color:var(--muted);margin-bottom:5px;letter-spacing:1px;text-transform:uppercase">W × D × H &nbsp;<span style="color:var(--acc);font-family:'JetBrains Mono',monospace;font-size:0.6rem">(inches)</span></div>
           <div class="inp-row">
@@ -171,6 +174,15 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
             <input type="number" class="inp" id="nH" value="18" min="1" max="999" style="width:44px">
             <input type="color" class="inp" id="nClr" value="#D09040" title="Color">
           </div>
+        </div>
+        <div class="inp-row">
+          <span class="inp-lbl">Weight</span>
+          <input type="number" class="inp" id="nWt" value="0" min="0" max="9999" step="0.1" style="width:56px">
+          <span style="font-size:0.6rem;color:var(--muted);flex-shrink:0">lbs</span>
+          <div style="flex:1"></div>
+          <label style="font-size:0.6rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none">
+            <input type="checkbox" id="nFlat"> Flat only
+          </label>
         </div>
         <button class="btn btn-acc btn-sm btn-full" id="addTypeBtn">+ Add Box Type</button>
       </div>
@@ -184,6 +196,11 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
           <input type="number" class="inp" id="abMaxH" value="96" min="1" max="999" style="width:48px">
           <span style="font-size:0.6rem;color:var(--muted);flex-shrink:0">in</span>
           <div style="flex:1"></div>
+          <label style="font-size:0.6rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none" title="Allow boxes to overhang up to 50% off pallet edge">
+            <input type="checkbox" id="abOverhang"> Overhang
+          </label>
+        </div>
+        <div style="display:flex;justify-content:flex-end">
           <button class="btn btn-acc btn-sm" id="autoBuildBtn" style="flex-shrink:0">&#9889; Auto Build</button>
         </div>
       </div>
@@ -251,11 +268,11 @@ const S={
   boxes:[],
   past:[], future:[],
   types:[
-    {id:'t1',name:'Chair – Flat',   w:24,d:24,h:18,color:'#C8823A',orient:0},
-    {id:'t2',name:'Chair – Tall',   w:14,d:14,h:32,color:'#E8C060',orient:0},
-    {id:'t3',name:'Desk Tabletop',  w:48,d:24,h:3, color:'#E2C870',orient:0},
-    {id:'t4',name:'Desk Legs Box',  w:12,d:24,h:34,color:'#8A5618',orient:0},
-    {id:'t5',name:'Desk Beams Box', w:36,d:12,h:3, color:'#B89030',orient:0},
+    {id:'t1',sku:'CHR-F',name:'Chair – Flat',   w:24,d:24,h:18,color:'#C8823A',orient:0,weight:35,flat:false},
+    {id:'t2',sku:'CHR-T',name:'Chair – Tall',   w:14,d:14,h:32,color:'#E8C060',orient:0,weight:28,flat:false},
+    {id:'t3',sku:'DSK-T',name:'Desk Tabletop',  w:48,d:24,h:3, color:'#E2C870',orient:0,weight:45,flat:true},
+    {id:'t4',sku:'DSK-L',name:'Desk Legs Box',  w:12,d:24,h:34,color:'#8A5618',orient:0,weight:22,flat:false},
+    {id:'t5',sku:'DSK-B',name:'Desk Beams Box', w:36,d:12,h:3, color:'#B89030',orient:0,weight:15,flat:true},
   ],
   activeId:'t1',
   hGx:null, hGy:null,
@@ -327,7 +344,7 @@ function placeBox(gx,gy){
   const w=tw(t),d=td(t),h=th(t);
   if(!inBounds(gx,gy,w,d)){ toast('Out of bounds'); return; }
   saveHist();
-  S.boxes.push({id:S.nxtId++,gx,gy,gz:gravZ(gx,gy,w,d),w,d,h,color:t.color,name:t.name});
+  S.boxes.push({id:S.nxtId++,gx,gy,gz:gravZ(gx,gy,w,d),w,d,h,color:t.color,sku:t.sku||'',name:t.name});
   render();
 }
 
@@ -356,8 +373,10 @@ function pickUp(gx,gy){
 // ─────────────────────────────────────────────────────
 
 // Find the best layer layout for a given footprint bw×bd on the pallet
-function _abLayouts(bw,bd){
-  const PW=S.palletW,PD=S.palletD,layouts=[];
+function _abLayouts(bw,bd,overhang){
+  // With overhang: allow boxes to extend up to 49% of their size beyond pallet edge
+  const ohW=overhang?Math.floor(bw*0.49):0, ohD=overhang?Math.floor(bd*0.49):0;
+  const PW=S.palletW+ohW,PD=S.palletD+ohD,layouts=[];
   function tryRowsD(wa,da,wb,db){
     const nxa=Math.floor(PW/wa),nya=Math.floor(PD/da);
     if(nxa<=0) return;
@@ -389,6 +408,7 @@ function _abLayouts(bw,bd){
 
 function autoBuild(){
   const maxH=parseInt(document.getElementById('abMaxH').value)||96;
+  const overhang=document.getElementById('abOverhang').checked;
   const items=[];
   S.types.forEach(t=>{
     const e=document.getElementById('abq-'+t.id);
@@ -397,25 +417,25 @@ function autoBuild(){
   });
   if(!items.length){ toast('Set qty on box types first'); return; }
 
-  // For each type, try all 6 orientations → pick best (most boxes fit within maxH)
+  // For each type, try orientations → pick best (most boxes fit within maxH)
+  // Flat-only types: only orient 0,1 (W↔D swap, H stays as height)
   const plans=[];
   for(const item of items){
     const t=item.t, dims=[t.w,t.d,t.h], seen=new Set();
+    const maxOrient=t.flat?2:6; // flat: only perms 0,1 (W↔D swap)
     let best=null;
-    for(let oi=0;oi<6;oi++){
+    for(let oi=0;oi<maxOrient;oi++){
       const p=_PERMS[oi];
       const fw=dims[p[0]], fd=dims[p[1]], fh=dims[p[2]];
       const key=fw+','+fd+','+fh;
       if(seen.has(key)) continue; seen.add(key);
       if(fh>maxH) continue;
-      const layout=_abLayouts(fw,fd);
+      const layout=_abLayouts(fw,fd,overhang);
       if(!layout) continue;
       const perLayer=layout.length;
-      const layersNeeded=Math.ceil(item.qty/perLayer);
       const layersFit=Math.floor(maxH/fh);
       const canPlace=Math.min(item.qty, layersFit*perLayer);
       const totalH=Math.ceil(canPlace/perLayer)*fh;
-      // Score: maximize placed count, then minimize height
       if(!best||canPlace>best.canPlace||(canPlace===best.canPlace&&totalH<best.totalH))
         best={layout,perLayer,fh,canPlace,totalH,fw,fd};
     }
@@ -423,8 +443,8 @@ function autoBuild(){
     else plans.push({t:item.t,qty:item.qty,canPlace:0});
   }
 
-  // Sort: largest footprint first (stable base)
-  plans.sort((a,b)=>(b.fw||0)*(b.fd||0)-(a.fw||0)*(a.fd||0));
+  // Sort: heaviest first (bottom), then largest footprint
+  plans.sort((a,b)=>(b.t.weight||0)-(a.t.weight||0)||(b.fw||0)*(b.fd||0)-(a.fw||0)*(a.fd||0));
 
   saveHist();
   S.boxes=[];
@@ -438,7 +458,7 @@ function autoBuild(){
       for(const c of plan.layout){
         if(placed>=plan.qty) break;
         S.boxes.push({id:S.nxtId++,gx:c.gx,gy:c.gy,gz:z,
-          w:c.w,d:c.d,h:plan.fh,color:plan.t.color,name:plan.t.name});
+          w:c.w,d:c.d,h:plan.fh,color:plan.t.color,sku:plan.t.sku||'',name:plan.t.name});
         placed++;
       }
       z+=plan.fh;
@@ -710,8 +730,8 @@ function renderBTL(){
     <div class="bti${t.id===S.activeId?' active':''}${(t.orient||0)>0?' flipped':''}" data-id="${t.id}">
       <div class="bti-sw" style="background:${t.color}"></div>
       <div class="bti-info">
-        <div class="bti-name">${t.name}</div>
-        <div class="bti-dim">${tw(t)}" × ${td(t)}" × ${th(t)}"</div>
+        <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:4px">'+t.sku+'</span>':''}${t.name}</div>
+        <div class="bti-dim">${tw(t)}" × ${td(t)}" × ${th(t)}"${t.weight?' · <b>'+t.weight+'</b>lb':''}${t.flat?' · <span style="color:var(--blue)" title="Flat only — won\'t flip upright">⬌</span>':''}</div>
       </div>
       <input type="number" class="inp" id="abq-${t.id}" value="${prevQtys[t.id]||0}" min="0" max="9999"
         style="width:38px;padding:3px 2px;font-size:0.68rem;text-align:center;font-family:'JetBrains Mono',monospace;flex-shrink:0;border-color:var(--bdr)"
@@ -921,24 +941,34 @@ function gridPos(e){
   function snap(gx,gy){
     return [Math.max(0,Math.min(maxGx,Math.round(gx))),Math.max(0,Math.min(maxGy,Math.round(gy)))];
   }
-  // Hit-test box top faces (front-to-back) for height-aware coords
-  const sorted=[...S.boxes].sort((a,b)=>{
-    const da=a.gx+a.gy,db=b.gx+b.gy;
-    return da!==db?da-db:(b.gz+b.h)-(a.gz+a.h);
-  });
+  // Sort: highest boxes first (stacking targets), then front-to-back
+  const sorted=[...S.boxes].sort((a,b)=>(b.gz+b.h)-(a.gz+a.h)||(a.gx+a.gy)-(b.gx+b.gy));
   for(const box of sorted){
-    const E=toS(box.gx,box.gy,box.gz+box.h);
-    const F=toS(box.gx+box.w,box.gy,box.gz+box.h);
-    const G=toS(box.gx+box.w,box.gy+box.d,box.gz+box.h);
-    const H=toS(box.gx,box.gy+box.d,box.gz+box.h);
+    const {gx:bx,gy:by,w:bww,d:bdd,h:bh,gz:bz}=box;
+    const tz=bz+bh;
+    // Top face
+    const E=toS(bx,by,tz),F=toS(bx+bww,by,tz),G=toS(bx+bww,by+bdd,tz),H=toS(bx,by+bdd,tz);
     if(ptInQuad(sx,sy,E,F,G,H)){
-      const [gx,gy]=fromSAtZ(sx,sy,box.gz+box.h);
-      return snap(gx,gy);
+      return snap(...fromSAtZ(sx,sy,tz));
+    }
+    // Left visible face (gy=by side)
+    const A=toS(bx,by,bz),B=toS(bx+bww,by,bz);
+    if(ptInQuad(sx,sy,A,B,F,E)){
+      return snap(...fromSAtZ(sx,sy,tz));
+    }
+    // Right visible face (gx=bx+bww side)
+    const C=toS(bx+bww,by+bdd,bz);
+    if(ptInQuad(sx,sy,B,C,G,F)){
+      return snap(...fromSAtZ(sx,sy,tz));
     }
   }
+  // Explicit pallet surface test
+  const PE=toS(0,0,0),PF=toS(S.palletW,0,0),PG=toS(S.palletW,S.palletD,0),PH=toS(0,S.palletD,0);
+  if(ptInQuad(sx,sy,PE,PF,PG,PH)){
+    return snap(...fromS(sx,sy));
+  }
   // Ground plane fallback
-  const [gx,gy]=fromS(sx,sy);
-  return snap(gx,gy);
+  return snap(...fromS(sx,sy));
 }
 
 isoC.addEventListener('mousemove',e=>{
@@ -969,16 +999,19 @@ document.getElementById('modeBtn').addEventListener('click',()=>{
 });
 document.getElementById('flipBtn').addEventListener('click',()=>{ if(S.activeId) flipType(S.activeId); });
 document.getElementById('addTypeBtn').addEventListener('click',()=>{
+  const sku=document.getElementById('nSku').value.trim();
   const name=document.getElementById('nName').value.trim()||'Box';
   const w=parseInt(document.getElementById('nW').value)||1;
   const d=parseInt(document.getElementById('nD').value)||1;
   const h=parseInt(document.getElementById('nH').value)||1;
   const color=document.getElementById('nClr').value;
+  const weight=parseFloat(document.getElementById('nWt').value)||0;
+  const flat=document.getElementById('nFlat').checked;
   const id='u'+S.nxtId++;
-  S.types.push({id,name,w,d,h,color,orient:0});
-  S.activeId=id; document.getElementById('nName').value='';
+  S.types.push({id,sku,name,w,d,h,color,orient:0,weight,flat});
+  S.activeId=id; document.getElementById('nSku').value=''; document.getElementById('nName').value='';
   renderBTL(); updStats(); render();
-  toast(`Added: ${name}  ${w}"×${d}"×${h}"`);
+  toast(`Added: ${sku?sku+' ':''}${name}  ${w}"×${d}"×${h}"`);
 });
 document.getElementById('autoBuildBtn').addEventListener('click',autoBuild);
 document.getElementById('applyP').addEventListener('click',()=>{
@@ -1051,10 +1084,10 @@ function _psbSnapshot(){
   S.types.forEach(t=>{const e=document.getElementById('abq-'+t.id);if(e)qtys[t.id]=parseInt(e.value)||0;});
   return {
     palletW:S.palletW, palletD:S.palletD,
-    types:S.types.map(t=>({id:t.id,name:t.name,w:t.w,d:t.d,h:t.h,color:t.color,orient:t.orient||0})),
+    types:S.types.map(t=>({id:t.id,sku:t.sku||'',name:t.name,w:t.w,d:t.d,h:t.h,color:t.color,orient:t.orient||0,weight:t.weight||0,flat:!!t.flat})),
     qtys,
     activeId:S.activeId,
-    boxes:S.boxes.map(b=>({gx:b.gx,gy:b.gy,gz:b.gz,w:b.w,d:b.d,h:b.h,color:b.color,name:b.name})),
+    boxes:S.boxes.map(b=>({gx:b.gx,gy:b.gy,gz:b.gz,w:b.w,d:b.d,h:b.h,color:b.color,sku:b.sku||'',name:b.name})),
   };
 }
 
@@ -1062,9 +1095,9 @@ function _psbRestore(snap){
   S.palletW=snap.palletW||48; S.palletD=snap.palletD||40;
   document.getElementById('pw').value=S.palletW;
   document.getElementById('pd').value=S.palletD;
-  S.types=(snap.types||[]).map(t=>({id:t.id,name:t.name,w:t.w,d:t.d,h:t.h,color:t.color,orient:t.orient||0}));
+  S.types=(snap.types||[]).map(t=>({id:t.id,sku:t.sku||'',name:t.name,w:t.w,d:t.d,h:t.h,color:t.color,orient:t.orient||0,weight:t.weight||0,flat:!!t.flat}));
   S.activeId=snap.activeId||S.types[0]?.id||null;
-  S.boxes=(snap.boxes||[]).map((b,i)=>({id:S.nxtId++,gx:b.gx,gy:b.gy,gz:b.gz,w:b.w,d:b.d,h:b.h,color:b.color,name:b.name}));
+  S.boxes=(snap.boxes||[]).map((b,i)=>({id:S.nxtId++,gx:b.gx,gy:b.gy,gz:b.gz,w:b.w,d:b.d,h:b.h,color:b.color,sku:b.sku||'',name:b.name}));
   S.past=[]; S.future=[]; updUR();
   renderBTL();
   // Restore qty values
