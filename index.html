@@ -200,13 +200,18 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="inp-row" style="margin-bottom:6px">
         <span style="font-size:0.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--txt)">Auto Build</span>
         <div style="flex:1"></div>
+        <button class="btn btn-ghost btn-sm" id="aiOptBtn" style="padding:5px 10px;color:var(--blue);border-color:var(--blue)" title="AI finds the best quantity mix to maximize pallet utilization">&#10024; Optimize</button>
         <button class="btn btn-acc btn-sm" id="autoBuildBtn" style="padding:5px 14px">&#9889; Build</button>
       </div>
-      <div class="inp-row">
+      <div class="inp-row" style="margin-bottom:4px">
         <span class="inp-lbl">Max H</span>
         <input type="number" class="inp" id="abMaxH" value="96" min="1" max="999" style="width:48px">
         <span style="font-size:0.6rem;color:var(--muted)">in</span>
-        <div style="flex:1"></div>
+        <span class="inp-lbl" style="margin-left:8px">Max Wt</span>
+        <input type="number" class="inp" id="abMaxWt" value="2500" min="1" max="99999" style="width:56px">
+        <span style="font-size:0.6rem;color:var(--muted)">lb</span>
+      </div>
+      <div class="inp-row">
         <label class="chk-label" title="Allow up to 50% overhang off pallet edge">
           <input type="checkbox" id="abOverhang"> Overhang
         </label>
@@ -281,11 +286,12 @@ const S={
   boxes:[],
   past:[], future:[],
   types:[
-    {id:'t1',sku:'CHR-F',name:'Chair – Flat',   w:24,d:24,h:18,color:'#C8823A',orient:0,weight:35,flat:false},
-    {id:'t2',sku:'CHR-T',name:'Chair – Tall',   w:14,d:14,h:32,color:'#E8C060',orient:0,weight:28,flat:false},
-    {id:'t3',sku:'DSK-T',name:'Desk Tabletop',  w:48,d:24,h:3, color:'#E2C870',orient:0,weight:45,flat:true},
-    {id:'t4',sku:'DSK-L',name:'Desk Legs Box',  w:12,d:24,h:34,color:'#8A5618',orient:0,weight:22,flat:false},
-    {id:'t5',sku:'DSK-B',name:'Desk Beams Box', w:36,d:12,h:3, color:'#B89030',orient:0,weight:15,flat:true},
+    {id:'t1',sku:'FNDSK-002',name:'Desk Large 5ft — Ctn 1',  w:64.5,d:30.75,h:2.25,  color:'#5B8DEF',orient:0,weight:0,flat:true},
+    {id:'t2',sku:'FNDSK-002',name:'Desk Large 5ft — Ctn 2',  w:58.625,d:5,h:2.75,    color:'#3B6FD9',orient:0,weight:0,flat:true},
+    {id:'t3',sku:'FNDSK-002',name:'Desk Large 5ft — Ctn 3',  w:36.375,d:29.75,h:10.375,color:'#2855A6',orient:0,weight:0,flat:false},
+    {id:'t4',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 1',    w:48.5,d:24.625,h:2.25, color:'#D4850A',orient:0,weight:0,flat:true},
+    {id:'t5',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 2',    w:43,d:5,h:2.75,        color:'#B06E00',orient:0,weight:0,flat:true},
+    {id:'t6',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 3',    w:36.25,d:24,h:10.5,    color:'#8A5500',orient:0,weight:0,flat:false},
   ],
   activeId:'t1',
   hGx:null, hGy:null,
@@ -496,23 +502,28 @@ function autoBuild(){
   // Sort: heaviest first (bottom), then largest footprint
   plans.sort((a,b)=>(b.t.weight||0)-(a.t.weight||0)||(b.fw||0)*(b.fd||0)-(a.fw||0)*(a.fd||0));
 
+  const maxWt=parseFloat(document.getElementById('abMaxWt').value)||99999;
+
   saveHist();
   S.boxes=[];
-  let z=0,total=0;
+  let z=0,total=0,totalWt=0;
   const warns=[];
 
   for(const plan of plans){
     if(!plan.layout){ warns.push(`${plan.t.name}: too large`);continue; }
     let placed=0,layerNum=0;
-    while(placed<plan.qty&&z+plan.fh<=maxH){
+    const layerWt=(plan.t.weight||0)*(plan.altLayout&&layerNum%2===1?plan.altPer:plan.perLayer);
+    while(placed<plan.qty&&z+plan.fh<=maxH&&totalWt+layerWt<=maxWt){
       // Alternate layout every other layer for interlocking
       const useLayout=(plan.altLayout&&layerNum%2===1)?plan.altLayout:plan.layout;
+      let layerBoxCount=0;
       for(const c of useLayout){
         if(placed>=plan.qty) break;
         S.boxes.push({id:S.nxtId++,gx:c.gx,gy:c.gy,gz:z,
           w:c.w,d:c.d,h:plan.fh,color:plan.t.color,sku:plan.t.sku||'',name:plan.t.name});
-        placed++;
+        placed++; layerBoxCount++;
       }
+      totalWt+=(plan.t.weight||0)*layerBoxCount;
       z+=plan.fh; layerNum++;
     }
     total+=placed;
@@ -522,6 +533,81 @@ function autoBuild(){
   render();
   if(warns.length) toast(`Placed ${total} (${z}" tall) — ${warns.join(', ')}`);
   else toast(`${total} boxes, ${z}" tall`);
+}
+
+// ─────────────────────────────────────────────────────
+// AI OPTIMIZER — find best qty mix to maximize utilization
+// ─────────────────────────────────────────────────────
+function aiOptimize(){
+  const maxH=parseInt(document.getElementById('abMaxH').value)||96;
+  const maxWt=parseFloat(document.getElementById('abMaxWt').value)||99999;
+  const overhang=document.getElementById('abOverhang').checked;
+
+  if(!S.types.length){toast('No box types defined');return;}
+
+  // For each type, compute best layer layout and per-layer stats
+  const candidates=[];
+  for(const t of S.types){
+    const dims=[t.w,t.d,t.h], maxOrient=t.flat?2:6, seen=new Set();
+    let best=null;
+    for(let oi=0;oi<maxOrient;oi++){
+      const p=_PERMS[oi];
+      const fw=dims[p[0]],fd=dims[p[1]],fh=dims[p[2]];
+      const key=fw+','+fd+','+fh;
+      if(seen.has(key)) continue; seen.add(key);
+      if(fh>maxH) continue;
+      const layout=_abLayouts(fw,fd,overhang);
+      if(!layout) continue;
+      const perLayer=layout.length;
+      if(!best||perLayer>best.perLayer||(perLayer===best.perLayer&&fh<best.fh))
+        best={perLayer,fh,layout,fw,fd};
+    }
+    if(best){
+      const layerWt=(t.weight||0)*best.perLayer;
+      const eff=best.perLayer/best.fh; // boxes per inch — efficiency score
+      candidates.push({t,perLayer:best.perLayer,fh:best.fh,layerWt,eff});
+    }
+  }
+
+  if(!candidates.length){toast('No types fit on pallet');return;}
+
+  // Greedy fill: repeatedly add a layer of the most efficient type that fits
+  // Sort by efficiency (boxes per inch), break ties by weight efficiency
+  candidates.sort((a,b)=>b.eff-a.eff||(a.layerWt/(a.perLayer||1))-(b.layerWt/(b.perLayer||1)));
+
+  let remH=maxH, remWt=maxWt;
+  const qtys={};
+  let totalBoxes=0, totalLayers=0;
+
+  while(remH>0){
+    let added=false;
+    for(const c of candidates){
+      if(c.fh<=remH&&c.layerWt<=remWt){
+        if(!qtys[c.t.id]) qtys[c.t.id]=0;
+        qtys[c.t.id]+=c.perLayer;
+        remH-=c.fh;
+        remWt-=c.layerWt;
+        totalBoxes+=c.perLayer;
+        totalLayers++;
+        added=true;
+        break;
+      }
+    }
+    if(!added) break;
+  }
+
+  // Set qty fields
+  S.types.forEach(t=>{
+    const e=document.getElementById('abq-'+t.id);
+    if(e) e.value=qtys[t.id]||0;
+  });
+
+  // Run auto build
+  autoBuild();
+
+  const usedH=maxH-remH, usedWt=Math.round((maxWt-remWt)*10)/10;
+  const fillPct=Math.round(usedH/maxH*100);
+  toast(`Optimized: ${totalBoxes} boxes, ${totalLayers} layers, ${usedH}" tall (${fillPct}%), ${usedWt}lb`);
 }
 
 function dropAt(gx,gy){
@@ -544,17 +630,12 @@ function drawBox(gx,gy,gz,w,d,h,color,alpha,sel){
   const E=toS(x0,y0,z1),     F=toS(x1,y0,z1);
   const G=toS(x1,y1,z1),     H=toS(x0,y1,z1);
   ctx.save(); ctx.globalAlpha=alpha;
-  // Draw all 4 side faces + top; painter's order depends on view rotation
-  const faces=[
-    {pts:[A,B,F,E],sh:.68}, // gy=min face (Y-)
-    {pts:[B,C,G,F],sh:.40}, // gx=max face (X+)
-    {pts:[D,A,E,H],sh:.55}, // gx=min face (X-)
-    {pts:[C,D,H,G],sh:.32}, // gy=max face (Y+)
-  ];
-  // Sort faces: back faces first based on view rotation
-  const fOrder=[[2,3,0,1],[3,0,1,2],[0,1,2,3],[1,2,3,0]]; // per rotation
-  const fo=fOrder[S.viewRot&3];
-  for(const fi of fo) poly(faces[fi].pts, shade(color,faces[fi].sh), true);
+  // Draw all 4 side faces + top; order and shading depend on view rotation
+  const faces=[ [A,B,F,E], [B,C,G,F], [D,A,E,H], [C,D,H,G] ];
+  const fOrder=[[2,3,0,1],[3,0,1,2],[0,1,2,3],[1,2,3,0]][S.viewRot&3];
+  // Back pair gets dark shading, front pair gets bright shading
+  const fSh={};fSh[fOrder[0]]=.32;fSh[fOrder[1]]=.45;fSh[fOrder[2]]=.68;fSh[fOrder[3]]=.42;
+  for(const fi of fOrder) poly(faces[fi], shade(color,fSh[fi]), true);
   poly([B,C,G,F], shade(color,.40), true);
   poly([E,F,G,H], shade(color,1.14), true);
   ctx.beginPath(); ctx.moveTo(...E); ctx.lineTo(...F);
@@ -1217,6 +1298,7 @@ document.getElementById('addTypeBtn').addEventListener('click',()=>{
   toast(`Added: ${sku?sku+' ':''}${name}  ${w}"×${d}"×${h}"`);
 });
 document.getElementById('autoBuildBtn').addEventListener('click',autoBuild);
+document.getElementById('aiOptBtn').addEventListener('click',aiOptimize);
 document.getElementById('applyP').addEventListener('click',()=>{
   S.palletW=parseInt(document.getElementById('pw').value)||48;
   S.palletD=parseInt(document.getElementById('pd').value)||40;
