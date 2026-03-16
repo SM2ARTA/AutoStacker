@@ -1344,13 +1344,7 @@ function gridPos(e){
     S.boxes.forEach(b=>{if(b.gx<0)oh=Math.max(oh,-b.gx);if(b.gy<0)oh=Math.max(oh,-b.gy);
       if(b.gx+b.w>PW)oh=Math.max(oh,b.gx+b.w-PW);if(b.gy+b.d>PD)oh=Math.max(oh,b.gy+b.d-PD);});
     const maxGx=(bw?PW-bw:PW-1)+oh,maxGy=(bd?PD-bd:PD-1)+oh;
-    // Check if cursor is over an existing box — if so, allow stacking at that position
-    const cursorOnBox=S.boxes.find(b=>rawGx+bw/2>=b.gx&&rawGx+bw/2<b.gx+b.w&&rawGy+bd/2>=b.gy&&rawGy+bd/2<b.gy+b.d);
-    if(cursorOnBox&&bw<=cursorOnBox.w&&bd<=cursorOnBox.d){
-      // Stack directly on this box's position
-      return [Math.max(-oh,Math.min(maxGx,cursorOnBox.gx)),Math.max(-oh,Math.min(maxGy,cursorOnBox.gy))];
-    }
-    // Magnetic snap to edges
+    // Free 1-inch grid placement with magnetic snap to edges
     const MAGNET=3;let bx=Math.round(rawGx),by=Math.round(rawGy);
     const xC=new Set([0,PW]),yC=new Set([0,PD]);
     if(bw>0){xC.add(PW-bw);for(let x=-oh;x<=PW+oh;x+=bw)xC.add(x);}
@@ -1405,13 +1399,13 @@ function gridPos(e){
   for(const box of sorted){
     const {gx:hbx,gy:hby,w:hbw,d:hbd,h:hbh,gz:hbz}=box;
     const tz=hbz+hbh;
-    // Top face — stack directly on this box if same/similar size
+    // Top face
     const E=toS(hbx,hby,tz),F=toS(hbx+hbw,hby,tz),G=toS(hbx+hbw,hby+hbd,tz),H=toS(hbx,hby+hbd,tz);
     if(ptInQuad(sx,sy,E,F,G,H)){
-      // If active box fits at this exact position, stack directly (human stacking)
-      if(bw>0&&bd>0&&bw<=hbw&&bd<=hbd) return snap(hbx,hby);
-      if(bw>0&&bd>0&&bd<=hbw&&bw<=hbd) return snap(hbx,hby);
-      // Otherwise center on cursor
+      // Same-size box: snap directly for perfect stacking
+      if(bw===hbw&&bd===hbd) return snap(hbx,hby);
+      if(bd===hbw&&bw===hbd) return snap(hbx,hby);
+      // Different size: free placement on this surface (center on cursor)
       const[rx,ry]=fromSAtZ(sx,sy,tz); return snap(rx-bw/2,ry-bd/2);
     }
     // Left visible face — push box to touch this face
