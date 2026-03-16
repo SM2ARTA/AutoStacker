@@ -825,14 +825,21 @@ function renderBTL(){
   el.querySelectorAll('[data-flat]').forEach(cb=>{
     cb.addEventListener('change',e=>{e.stopPropagation();
       const t=S.types.find(x=>x.id===cb.dataset.flat);
-      if(t) t.flat=cb.checked;
+      if(t){ t.flat=cb.checked; if(cb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); }
     });
   });
 }
 
 function flipType(id){
   const t=S.types.find(x=>x.id===id); if(!t) return;
-  // Cycle through unique orientations (skip duplicates for cubes etc.)
+  if(t.flat){
+    // Flat only: just swap W↔D (orient 0↔1), keep H as height
+    t.orient=(t.orient||0)===0?1:0;
+    renderBTL(); updStats(); render();
+    toast(`Rotated → ${tw(t)}" × ${td(t)}" (flat)`);
+    return;
+  }
+  // Cycle through all unique orientations
   const dims=[t.w,t.d,t.h], seen=new Set(), unique=[];
   for(let i=0;i<6;i++){const p=_PERMS[i];const k=dims[p[0]]+','+dims[p[1]]+','+dims[p[2]];if(!seen.has(k)){seen.add(k);unique.push(i);}}
   const cur=unique.indexOf(t.orient||0);
@@ -1010,9 +1017,18 @@ function gridPos(e){
   let bw=0,bd=0;
   if(S.mode==='place'){const t=atype();if(t){bw=tw(t);bd=td(t);}}
   else if(S.selId){const b=S.boxes.find(x=>x.id===S.selId);if(b){bw=b.w;bd=b.d;}}
-  // Allow cursor to reach overhang positions only when overhang is enabled
+  // Cursor range: always extend to cover existing overhanging boxes (for removal/move)
+  // plus overhang zone when checkbox is on (for placement)
+  let oh=0;
   const ohOn=document.getElementById('abOverhang').checked;
-  const oh=ohOn&&bw?Math.floor(Math.max(bw,bd)*0.49):0;
+  if(ohOn&&bw) oh=Math.floor(Math.max(bw,bd)*0.49);
+  // Extend range to reach any existing box that's off-pallet
+  S.boxes.forEach(b=>{
+    if(b.gx<0) oh=Math.max(oh,-b.gx);
+    if(b.gy<0) oh=Math.max(oh,-b.gy);
+    if(b.gx+b.w>S.palletW) oh=Math.max(oh,b.gx+b.w-S.palletW);
+    if(b.gy+b.d>S.palletD) oh=Math.max(oh,b.gy+b.d-S.palletD);
+  });
   const maxGx=(bw?S.palletW-bw:S.palletW-1)+oh, maxGy=(bd?S.palletD-bd:S.palletD-1)+oh;
   // Smart snap: box-size multiples + pallet edges + existing box edges
   function snap(rawGx,rawGy){
