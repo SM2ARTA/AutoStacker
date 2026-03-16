@@ -1279,25 +1279,33 @@ function gridPos(e){
   // Sort: highest boxes first (stacking targets), then front-to-back
   const sorted=[...S.boxes].sort((a,b)=>(b.gz+b.h)-(a.gz+a.h)||(a.gx+a.gy)-(b.gx+b.gy));
   for(const box of sorted){
-    const {gx:bx,gy:by,w:bww,d:bdd,h:bh,gz:bz}=box;
-    const tz=bz+bh;
-    // Top face
-    const E=toS(bx,by,tz),F=toS(bx+bww,by,tz),G=toS(bx+bww,by+bdd,tz),H=toS(bx,by+bdd,tz);
+    const {gx:hbx,gy:hby,w:hbw,d:hbd,h:hbh,gz:hbz}=box;
+    const tz=hbz+hbh;
+    // Top face — stack directly on this box if same/similar size
+    const E=toS(hbx,hby,tz),F=toS(hbx+hbw,hby,tz),G=toS(hbx+hbw,hby+hbd,tz),H=toS(hbx,hby+hbd,tz);
     if(ptInQuad(sx,sy,E,F,G,H)){
+      // If active box fits at this exact position, stack directly (human stacking)
+      if(bw>0&&bd>0&&bw<=hbw&&bd<=hbd) return snap(hbx,hby);
+      if(bw>0&&bd>0&&bd<=hbw&&bw<=hbd) return snap(hbx,hby);
+      // Otherwise center on cursor
       const[rx,ry]=fromSAtZ(sx,sy,tz); return snap(rx-bw/2,ry-bd/2);
     }
-    // Left visible face (gy=by side)
-    const A=toS(bx,by,bz),B=toS(bx+bww,by,bz);
+    // Left visible face — push box to touch this face
+    const A=toS(hbx,hby,hbz),B=toS(hbx+hbw,hby,hbz);
     if(ptInQuad(sx,sy,A,B,F,E)){
-      const[rx,ry]=fromSAtZ(sx,sy,tz); return snap(rx-bw/2,ry-bd/2);
+      // Place touching this box's front edge (gy = hby - bd)
+      const[rx]=fromSAtZ(sx,sy,tz);
+      return snap(rx-bw/2, hby-bd);
     }
-    // Right visible face (gx=bx+bww side)
-    const C=toS(bx+bww,by+bdd,bz);
+    // Right visible face — push box to touch this face
+    const C=toS(hbx+hbw,hby+hbd,hbz);
     if(ptInQuad(sx,sy,B,C,G,F)){
-      const[rx,ry]=fromSAtZ(sx,sy,tz); return snap(rx-bw/2,ry-bd/2);
+      // Place touching this box's right edge (gx = hbx + hbw)
+      const[,ry]=fromSAtZ(sx,sy,tz);
+      return snap(hbx+hbw, ry-bd/2);
     }
   }
-  // Pallet surface / ground plane
+  // Pallet surface — push to nearest pallet edge/corner
   const[rx,ry]=fromS(sx,sy);
   return snap(rx-bw/2,ry-bd/2);
 }
