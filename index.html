@@ -32,7 +32,6 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--bdr)}.btn-ghost:hover{color:var(--txt);border-color:var(--bdr2)}
 .btn-danger{background:transparent;color:var(--red);border:1px solid #F5D0D0}.btn-danger:hover{background:#FEF0F0}
 .btn-sm{padding:5px 10px;font-size:0.72rem}
-.btn-full{width:100%;justify-content:center}
 .btn:disabled{opacity:.35;cursor:not-allowed}
 .btn-mode{border:1px solid var(--bdr);background:var(--surf2);color:var(--muted);padding:5px 14px;font-size:0.72rem;letter-spacing:1.5px}
 .btn-mode.on-place{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
@@ -48,8 +47,6 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .sec-compact{padding:8px 14px 6px;border-bottom:1px solid var(--bdr);flex-shrink:0}
 .preset-btn{background:var(--surf2);border:1px solid var(--bdr);border-radius:4px;padding:4px 10px;font-size:0.62rem;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:0.8px;color:var(--muted);cursor:pointer;transition:all .14s}
 .preset-btn:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
-.field-group{background:var(--surf2);border:1px solid var(--bdr);border-radius:6px;padding:10px 12px;margin-bottom:6px}
-.field-label{font-size:0.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px;font-weight:600}
 .chk-label{font-size:0.62rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none}
 .chk-label input{margin:0;accent-color:var(--acc)}
 
@@ -157,65 +154,28 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
 <div class="main">
 
   <div class="lp">
-    <!-- PALLET SIZE -->
-    <div class="sec-compact">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="inp-lbl">Pallet</span>
-        <input type="number" class="inp" id="pw" value="48" min="12" max="120" style="width:48px">
+    <!-- PALLET & BUILD SETTINGS -->
+    <div class="sec-compact" style="padding:10px 14px 8px">
+      <div class="sec-title" style="margin-bottom:6px">Pallet</div>
+      <div class="inp-row" style="margin-bottom:6px">
+        <input type="number" class="inp" id="pw" value="48" min="12" max="120" style="width:46px">
         <span class="inp-x">×</span>
-        <input type="number" class="inp" id="pd" value="40" min="12" max="120" style="width:48px">
-        <span style="font-size:0.6rem;color:var(--muted)">in</span>
-        <button class="btn btn-ghost btn-sm" id="applyP" style="padding:4px 8px" title="Apply">↻</button>
+        <input type="number" class="inp" id="pd" value="40" min="12" max="120" style="width:46px">
+        <span class="inp-lbl">in</span>
+        <button class="btn btn-ghost btn-sm" id="applyP" style="padding:3px 7px" title="Apply">↻</button>
+        <div style="flex:1"></div>
+        <span class="inp-lbl">H</span>
+        <input type="number" class="inp" id="abMaxH" value="86" min="1" max="999" style="width:42px">
+        <span class="inp-lbl">Wt</span>
+        <input type="number" class="inp" id="abMaxWt" value="2500" min="1" max="99999" style="width:50px">
+        <span class="inp-lbl">lb</span>
       </div>
-      <div style="display:flex;gap:4px;margin-top:6px">
+      <div style="display:flex;align-items:center;gap:4px">
         <button class="preset-btn" onclick="document.getElementById('pw').value=48;document.getElementById('pd').value=40;document.getElementById('applyP').click()">48×40</button>
         <button class="preset-btn" onclick="document.getElementById('pw').value=48;document.getElementById('pd').value=48;document.getElementById('applyP').click()">48×48</button>
-        <button class="preset-btn" onclick="document.getElementById('pw').value=96;document.getElementById('pd').value=48;document.getElementById('applyP').click()">96×48 Double</button>
+        <button class="preset-btn" onclick="document.getElementById('pw').value=96;document.getElementById('pd').value=48;document.getElementById('applyP').click()">96×48</button>
         <button class="preset-btn" onclick="document.getElementById('pw').value=42;document.getElementById('pd').value=42;document.getElementById('applyP').click()">42×42</button>
-      </div>
-    </div>
-
-    <!-- NEW BOX TYPE -->
-    <div class="sec">
-      <div class="sec-title">Add Box Type</div>
-      <div class="field-group">
-        <div class="inp-row" style="margin-bottom:8px">
-          <input type="text" class="inp" id="nSku" placeholder="SKU" style="width:90px;flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.68rem">
-          <input type="text" class="inp" id="nName" placeholder="Item name" style="flex:1">
-        </div>
-        <div class="field-label">Dimensions <span style="color:var(--acc);font-family:'JetBrains Mono',monospace">(in)</span></div>
-        <div class="inp-row" style="margin-bottom:8px">
-          <input type="number" class="inp" id="nW" value="24" min="1" max="999" style="width:52px" placeholder="W">
-          <span class="inp-x">×</span>
-          <input type="number" class="inp" id="nD" value="24" min="1" max="999" style="width:52px" placeholder="D">
-          <span class="inp-x">×</span>
-          <input type="number" class="inp" id="nH" value="18" min="1" max="999" style="width:52px" placeholder="H">
-          <input type="color" class="inp" id="nClr" value="#D09040" title="Color">
-        </div>
-        <div class="inp-row">
-          <input type="number" class="inp" id="nWt" value="0" min="0" max="9999" step="0.1" style="width:60px" placeholder="0">
-          <span style="font-size:0.6rem;color:var(--muted)">lbs</span>
-          <div style="flex:1"></div>
-          <label class="chk-label"><input type="checkbox" id="nFlat"> Flat only</label>
-        </div>
-      </div>
-      <button class="btn btn-acc btn-sm btn-full" id="addTypeBtn">+ Add Box Type</button>
-    </div>
-
-    <!-- AUTO BUILD -->
-    <div class="sec-compact" style="background:var(--surf2)">
-      <div class="inp-row" style="margin-bottom:6px">
-        <span style="font-size:0.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--txt)">Auto Build</span>
-      </div>
-      <div class="inp-row" style="margin-bottom:4px">
-        <span class="inp-lbl">Max H</span>
-        <input type="number" class="inp" id="abMaxH" value="86" min="1" max="999" style="width:48px">
-        <span style="font-size:0.6rem;color:var(--muted)">in</span>
-        <span class="inp-lbl" style="margin-left:8px">Max Wt</span>
-        <input type="number" class="inp" id="abMaxWt" value="2500" min="1" max="99999" style="width:56px">
-        <span style="font-size:0.6rem;color:var(--muted)">lb</span>
-      </div>
-      <div class="inp-row">
+        <div style="flex:1"></div>
         <label class="chk-label" title="Allow up to 50% overhang off pallet edge">
           <input type="checkbox" id="abOverhang"> Overhang
         </label>
@@ -225,9 +185,34 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       </div>
     </div>
 
+    <!-- ADD BOX TYPE -->
+    <div class="sec-compact" style="padding:8px 14px">
+      <div class="sec-title" style="margin-bottom:6px">Add Box Type</div>
+      <div class="inp-row" style="margin-bottom:5px">
+        <input type="text" class="inp" id="nSku" placeholder="SKU" style="width:80px;flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:0.65rem">
+        <input type="text" class="inp" id="nName" placeholder="Item name" style="flex:1">
+        <input type="color" class="inp" id="nClr" value="#D09040" title="Color" style="width:28px;height:26px;padding:1px;flex-shrink:0">
+      </div>
+      <div class="inp-row">
+        <input type="number" class="inp" id="nW" value="24" min="1" max="999" style="width:48px" placeholder="W">
+        <span class="inp-x">×</span>
+        <input type="number" class="inp" id="nD" value="24" min="1" max="999" style="width:48px" placeholder="D">
+        <span class="inp-x">×</span>
+        <input type="number" class="inp" id="nH" value="18" min="1" max="999" style="width:48px" placeholder="H">
+        <span class="inp-lbl">in</span>
+        <div style="width:1px;height:16px;background:var(--bdr);flex-shrink:0"></div>
+        <input type="number" class="inp" id="nWt" value="0" min="0" max="9999" step="0.1" style="width:46px" placeholder="0">
+        <span class="inp-lbl">lb</span>
+        <div style="width:1px;height:16px;background:var(--bdr);flex-shrink:0"></div>
+        <label class="chk-label"><input type="checkbox" id="nFlat"> Flat</label>
+        <div style="flex:1"></div>
+        <button class="btn btn-acc btn-sm" id="addTypeBtn" style="padding:4px 12px;white-space:nowrap">+ Add</button>
+      </div>
+    </div>
+
     <!-- BOX TYPES LIST -->
-    <div class="sec-compact" style="border-bottom:none">
-      <div class="sec-title">Box Types <span id="typeCnt"></span></div>
+    <div class="sec-compact" style="border-bottom:none;padding:6px 14px 4px">
+      <div class="sec-title" style="margin-bottom:0">Box Types <span id="typeCnt"></span></div>
     </div>
     <div class="btl" id="btl"></div>
   </div>
