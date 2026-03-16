@@ -216,6 +216,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="tb-spacer"></div>
       <kbd>F</kbd><span style="font-size:0.6rem;color:var(--muted)">rotate</span>&nbsp;
       <kbd>M</kbd><span style="font-size:0.6rem;color:var(--muted)">move</span>&nbsp;
+      <kbd>Del</kbd><span style="font-size:0.6rem;color:var(--muted)">remove</span>&nbsp;
       <kbd>Esc</kbd><span style="font-size:0.6rem;color:var(--muted)">cancel</span>&nbsp;
       <kbd>Ctrl+Z</kbd><span style="font-size:0.6rem;color:var(--muted)">undo</span>&nbsp;
       <kbd>Ctrl+Y</kbd><span style="font-size:0.6rem;color:var(--muted)">redo</span>
@@ -858,6 +859,11 @@ window.addEventListener('keydown',e=>{
   }
   if((e.key==='m'||e.key==='M')&&!e.ctrlKey&&!e.metaKey){ S.mode=S.mode==='place'?'move':'place'; S.selId=null; updModeUI(); render(); }
   if((e.key==='f'||e.key==='F')&&!e.ctrlKey&&!e.metaKey){ if(S.activeId) flipType(S.activeId); }
+  if(e.key==='Delete'||e.key==='Backspace'){
+    if(!S.boxes.length) return;
+    if(S.hGx!==null) removeTop(S.hGx,S.hGy);
+    else { saveHist(); S.boxes.pop(); render(); toast('Removed last box'); }
+  }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){ e.preventDefault(); undo(); }
   if((e.ctrlKey||e.metaKey)&&(e.shiftKey&&e.key==='z'||e.key==='y')){ e.preventDefault(); redo(); }
 });
