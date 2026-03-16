@@ -253,9 +253,13 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
         <button class="flip-inline" id="flipBtn" title="Flip W↔D [F]">⟳</button>
       </div>
       <div class="tb-sep"></div>
-      <label style="display:flex;align-items:center;gap:5px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate layers">
-        <span>Explode</span>
-        <input type="range" id="explodeSlider" min="0" max="100" value="0" style="width:72px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explode=this.value/100;render()">
+      <label style="display:flex;align-items:center;gap:5px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate layers vertically">
+        <span>↕</span>
+        <input type="range" id="explodeSlider" min="0" max="100" value="0" style="width:60px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explode=this.value/100;render()">
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate boxes horizontally">
+        <span>↔</span>
+        <input type="range" id="explodeHSlider" min="0" max="100" value="0" style="width:60px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explodeH=this.value/100;render()">
       </label>
       <div class="tb-spacer"></div>
       <kbd>F</kbd><span style="font-size:0.6rem;color:var(--muted)">rotate</span>&nbsp;
@@ -323,7 +327,8 @@ const S={
   selId:null,           // picked-up box id in move mode
   viewRot:0,            // 0,1,2,3 — 90° rotation steps
   viewMode:'iso',       // 'iso' | 'top'
-  explode:0,            // 0–1 layer separation slider
+  explode:0,            // 0–1 vertical layer separation
+  explodeH:0,           // 0–1 horizontal box separation
   nxtId:100,
 };
 
@@ -761,8 +766,8 @@ function renderIso(){
 
   const sorted=isoSort(S.boxes);
 
-  // Explode: compute layer indices for vertical separation
-  const _expGap=16; // inches gap at full explode
+  // Explode: vertical layer separation + horizontal box separation
+  const _expGap=16; // inches vertical gap at full explode
   let _zLvls=[], _layerIdx={};
   if(S.explode>0){
     _zLvls=[...new Set(S.boxes.map(b=>b.gz))].sort((a,b)=>a-b);
@@ -771,9 +776,16 @@ function renderIso(){
   const _eOff=(gz)=>{
     if(S.explode<=0) return 0;
     if(gz in _layerIdx) return _layerIdx[gz]*_expGap*S.explode;
-    // Ghost/new layer: find closest layer below
     let li=0; for(let i=_zLvls.length-1;i>=0;i--){if(_zLvls[i]<=gz){li=i+1;break;}}
     return li*_expGap*S.explode;
+  };
+  // Horizontal: push boxes outward from pallet center
+  const _hStr=S.explodeH*0.8; // max 80% of box center distance added
+  const _pcx=S.palletW/2, _pcy=S.palletD/2;
+  const _hOff=(gx,gy,w,d)=>{
+    if(_hStr<=0) return [0,0];
+    const bcx=gx+w/2, bcy=gy+d/2;
+    return [(bcx-_pcx)*_hStr, (bcy-_pcy)*_hStr];
   };
 
   // Place mode hover preview
@@ -781,7 +793,8 @@ function renderIso(){
     const t=atype(); if(t){
       const w=tw(t),d=td(t),h=th(t), gz=gravZ(S.hGx,S.hGy,w,d), ok=inBounds(S.hGx,S.hGy,w,d);
       if(ok){
-        drawBox(S.hGx,S.hGy,gz+_eOff(gz),w,d,h,t.color,0.36);
+        const[_hx,_hy]=_hOff(S.hGx,S.hGy,w,d);
+        drawBox(S.hGx+_hx,S.hGy+_hy,gz+_eOff(gz),w,d,h,t.color,0.36);
         const fp=[toS(S.hGx,S.hGy,0),toS(S.hGx+w,S.hGy,0),toS(S.hGx+w,S.hGy+d,0),toS(S.hGx,S.hGy+d,0)];
         ctx.save(); ctx.beginPath(); ctx.moveTo(...fp[0]); fp.slice(1).forEach(p=>ctx.lineTo(...p)); ctx.closePath();
         ctx.strokeStyle=t.color; ctx.lineWidth=1.3; ctx.globalAlpha=0.6; ctx.setLineDash([4,3]); ctx.stroke(); ctx.restore();
@@ -799,7 +812,8 @@ function renderIso(){
     const b=S.boxes.find(x=>x.id===S.selId); if(b){
       const ok=inBounds(S.hGx,S.hGy,b.w,b.d);
       const _mgz=gravZ(S.hGx,S.hGy,b.w,b.d,b.id);
-      drawBox(S.hGx,S.hGy,_mgz+_eOff(_mgz),b.w,b.d,b.h,ok?b.color:'#e05858',ok?0.38:0.22);
+      const[_mhx,_mhy]=_hOff(S.hGx,S.hGy,b.w,b.d);
+      drawBox(S.hGx+_mhx,S.hGy+_mhy,_mgz+_eOff(_mgz),b.w,b.d,b.h,ok?b.color:'#e05858',ok?0.38:0.22);
       if(ok){
         const fp=[toS(S.hGx,S.hGy,0),toS(S.hGx+b.w,S.hGy,0),toS(S.hGx+b.w,S.hGy+b.d,0),toS(S.hGx,S.hGy+b.d,0)];
         ctx.save(); ctx.beginPath(); ctx.moveTo(...fp[0]); fp.slice(1).forEach(p=>ctx.lineTo(...p)); ctx.closePath();
@@ -810,7 +824,8 @@ function renderIso(){
 
   sorted.forEach(b=>{
     const sel=(S.mode==='move'||S.mode==='select')&&S.selId===b.id;
-    drawBox(b.gx,b.gy,b.gz+_eOff(b.gz),b.w,b.d,b.h,b.color,sel?0.45:1.0,sel);
+    const[_bhx,_bhy]=_hOff(b.gx,b.gy,b.w,b.d);
+    drawBox(b.gx+_bhx,b.gy+_bhy,b.gz+_eOff(b.gz),b.w,b.d,b.h,b.color,sel?0.45:1.0,sel);
   });
 }
 
