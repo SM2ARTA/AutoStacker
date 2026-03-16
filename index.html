@@ -1974,7 +1974,9 @@ async function _psbLoadIndex(){
   if(!SB) return [];
   try{
     const{data}=await SB.from('shared_state').select('value').eq('id',PSB_INDEX).single();
-    return data?JSON.parse(data.value):[];
+    if(!data) return [];
+    let v=data.value; while(typeof v==='string') v=JSON.parse(v);
+    return Array.isArray(v)?v:[];
   }catch(e){return[];}
 }
 async function _psbSaveIndex(idx){
@@ -1996,15 +1998,15 @@ function _psbSnapshot(){
 }
 
 function _psbRestore(snap){
+  if(!snap||typeof snap!=='object'||!snap.types){throw new Error('Invalid snapshot format');}
   S.palletW=snap.palletW||48; S.palletD=snap.palletD||40;
   document.getElementById('pw').value=S.palletW;
   document.getElementById('pd').value=S.palletD;
-  S.types=(snap.types||[]).map(t=>({id:t.id,sku:t.sku||'',name:t.name,w:t.w,d:t.d,h:t.h,color:t.color,orient:t.orient||0,weight:t.weight||0,flat:!!t.flat}));
+  S.types=(snap.types||[]).map(t=>({id:t.id,sku:t.sku||'',name:t.name||'',w:t.w||12,d:t.d||12,h:t.h||12,color:t.color||'#888',orient:t.orient||0,weight:t.weight||0,flat:!!t.flat}));
   S.activeId=snap.activeId||S.types[0]?.id||null;
-  S.boxes=(snap.boxes||[]).map((b,i)=>({id:S.nxtId++,gx:b.gx,gy:b.gy,gz:b.gz,w:b.w,d:b.d,h:b.h,color:b.color,sku:b.sku||'',name:b.name}));
+  S.boxes=(snap.boxes||[]).map((b,i)=>({id:S.nxtId++,gx:b.gx||0,gy:b.gy||0,gz:b.gz||0,w:b.w||12,d:b.d||12,h:b.h||12,color:b.color||'#888',sku:b.sku||'',name:b.name||''}));
   S.past=[]; S.future=[]; updUR();
   renderBTL();
-  // Restore qty values
   if(snap.qtys) S.types.forEach(t=>{const e=document.getElementById('abq-'+t.id);if(e&&snap.qtys[t.id]!==undefined)e.value=snap.qtys[t.id];});
   render();
 }
@@ -2087,7 +2089,8 @@ async function showLoadModal(){
       try{
         const{data}=await SB.from('shared_state').select('value').eq('id',id).single();
         if(data){
-          const snap=typeof data.value==='string'?JSON.parse(data.value):data.value;
+          let snap=data.value;
+          while(typeof snap==='string') snap=JSON.parse(snap);
           _psbRestore(snap);_closeModal();toast('Loaded!');
         } else toast('Not found');
       }catch(err){toast('Load error: '+err.message);console.error(err);}
