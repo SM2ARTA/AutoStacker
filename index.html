@@ -135,6 +135,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
   </div>
   <div class="hdr-actions">
     <button class="btn btn-mode on-place" id="modeBtn">✦ Place</button>
+    <button class="btn btn-ghost btn-sm" id="viewBtn" title="Toggle Isometric / Top-Down view [T]">◫ Iso</button>
     <div style="width:1px;height:18px;background:var(--bdr)"></div>
     <button class="btn btn-ghost btn-sm" id="undoBtn" disabled>↩ Undo</button>
     <button class="btn btn-ghost btn-sm" id="redoBtn" disabled>↪ Redo</button>
@@ -251,6 +252,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="tb-spacer"></div>
       <kbd>F</kbd><span style="font-size:0.6rem;color:var(--muted)">rotate</span>&nbsp;
       <kbd>M</kbd><span style="font-size:0.6rem;color:var(--muted)">move</span>&nbsp;
+      <kbd>T</kbd><span style="font-size:0.6rem;color:var(--muted)">top view</span>&nbsp;
       <kbd>L</kbd><span style="font-size:0.6rem;color:var(--muted)">dup layer</span>&nbsp;
       <kbd>Q</kbd><kbd>E</kbd><span style="font-size:0.6rem;color:var(--muted)">rotate view</span>&nbsp;
       <kbd>Del</kbd><span style="font-size:0.6rem;color:var(--muted)">remove</span>&nbsp;
@@ -302,6 +304,7 @@ const S={
   mode:'place',         // 'place' | 'move'
   selId:null,           // picked-up box id in move mode
   viewRot:0,            // 0,1,2,3 — 90° rotation steps
+  viewMode:'iso',       // 'iso' | 'top'
   nxtId:100,
 };
 
@@ -976,7 +979,97 @@ function flipType(id){
 function render(){
   const r=cvWrap.getBoundingClientRect(); LW=r.width; LH=r.height;
   isoC.style.width=LW+'px'; isoC.style.height=LH+'px';
-  renderIso(); renderTop(); updStats();
+  if(S.viewMode==='top') renderTopView(); else renderIso();
+  renderTop(); updStats();
+}
+
+// ─────────────────────────────────────────────────────
+// TOP-DOWN 2D VIEW — orthographic placement mode
+// ─────────────────────────────────────────────────────
+function renderTopView(){
+  const dpr=window.devicePixelRatio||1;
+  isoC.width=LW*dpr; isoC.height=LH*dpr; ctx.scale(dpr,dpr);
+  ctx.fillStyle='#E4E6EA'; ctx.fillRect(0,0,LW,LH);
+
+  const PW=S.palletW, PD=S.palletD;
+  // Compute scale to fit pallet in canvas with padding
+  const pad=40;
+  const scaleX=(LW-pad*2)/PW, scaleY=(LH-pad*2)/PD;
+  const sc=Math.min(scaleX,scaleY);
+  const ox=(LW-PW*sc)/2, oy=(LH-PD*sc)/2;
+
+  // Draw pallet base
+  ctx.fillStyle='#DDB87A'; ctx.strokeStyle='#9C7840'; ctx.lineWidth=1.5;
+  ctx.fillRect(ox,oy,PW*sc,PD*sc); ctx.strokeRect(ox,oy,PW*sc,PD*sc);
+
+  // Grid lines every 12"
+  ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=0.5;
+  for(let i=12;i<PW;i+=12){ctx.beginPath();ctx.moveTo(ox+i*sc,oy);ctx.lineTo(ox+i*sc,oy+PD*sc);ctx.stroke();}
+  for(let j=12;j<PD;j+=12){ctx.beginPath();ctx.moveTo(ox,oy+j*sc);ctx.lineTo(ox+PW*sc,oy+j*sc);ctx.stroke();}
+
+  // Ruler labels
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.font=`${Math.max(8,10*sc/4)|0}px JetBrains Mono,monospace`; ctx.textAlign='center';
+  for(let i=0;i<=PW;i+=12){ctx.fillText(i+'"',ox+i*sc,oy-6);}
+  ctx.textAlign='right'; ctx.textBaseline='middle';
+  for(let j=0;j<=PD;j+=12){ctx.fillText(j+'"',ox-6,oy+j*sc);}
+
+  // Sort boxes: lower z first (bottom layers behind)
+  const sorted=[...S.boxes].sort((a,b)=>a.gz-b.gz||(a.gx+a.gy)-(b.gx+b.gy));
+
+  // Draw boxes
+  sorted.forEach(b=>{
+    const x=ox+b.gx*sc, y=oy+b.gy*sc, w=b.w*sc, d=b.d*sc;
+    // Fill with color, darker for higher z
+    const zFade=0.6+0.4*Math.min(1,(b.gz)/(S.boxes.reduce((m,bb)=>Math.max(m,bb.gz+bb.h),1)));
+    ctx.fillStyle=b.color; ctx.globalAlpha=0.5+zFade*0.3;
+    ctx.fillRect(x,y,w,d);
+    ctx.globalAlpha=1;
+    ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.lineWidth=Math.max(0.5,sc*0.02);
+    ctx.strokeRect(x+0.5,y+0.5,w-1,d-1);
+    // Label
+    if(w>30&&d>15){
+      ctx.fillStyle='rgba(0,0,0,0.55)';
+      ctx.font=`600 ${Math.max(7,Math.min(12,w/8))|0}px Barlow Condensed,sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      const label=b.sku||b.name||'';
+      ctx.fillText(label,x+w/2,y+d/2-5);
+      ctx.font=`${Math.max(6,Math.min(10,w/10))|0}px JetBrains Mono,monospace`;
+      ctx.fillStyle='rgba(0,0,0,0.35)';
+      ctx.fillText(`${b.w}"×${b.d}"`,x+w/2,y+d/2+5);
+    }
+  });
+
+  // Hover preview
+  if(S.hGx!==null&&S.mode==='place'){
+    const t=atype(); if(t){
+      const w=tw(t),d=td(t),h=th(t);
+      const ok=inBounds(S.hGx,S.hGy,w,d);
+      const x=ox+S.hGx*sc, y=oy+S.hGy*sc;
+      ctx.fillStyle=ok?t.color:'#e05858'; ctx.globalAlpha=0.3;
+      ctx.fillRect(x,y,w*sc,d*sc);
+      ctx.globalAlpha=0.7;
+      ctx.strokeStyle=ok?t.color:'#e05858'; ctx.lineWidth=2;
+      ctx.setLineDash([4,3]); ctx.strokeRect(x,y,w*sc,d*sc); ctx.setLineDash([]);
+      ctx.globalAlpha=1;
+    }
+  }
+
+  // Move mode selected box highlight
+  if(S.mode==='move'&&S.selId!==null){
+    const b=S.boxes.find(x=>x.id===S.selId);
+    if(b){
+      const x=ox+b.gx*sc,y=oy+b.gy*sc;
+      ctx.strokeStyle='#3B6FD9'; ctx.lineWidth=2.5;
+      ctx.setLineDash([5,3]); ctx.strokeRect(x,y,b.w*sc,b.d*sc); ctx.setLineDash([]);
+    }
+  }
+
+  // Pallet dimension labels
+  ctx.fillStyle='var(--muted)'; ctx.font='bold 11px Barlow Condensed,sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText(`${PW}"`,ox+PW*sc/2,oy+PD*sc+8);
+  ctx.save(); ctx.translate(ox-12,oy+PD*sc/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText(`${PD}"`,0,0); ctx.restore();
 }
 
 // ─────────────────────────────────────────────────────
@@ -1239,6 +1332,31 @@ function gridPos(e){
   let bw=0,bd=0;
   if(S.mode==='place'){const t=atype();if(t){bw=tw(t);bd=td(t);}}
   else if(S.selId){const b=S.boxes.find(x=>x.id===S.selId);if(b){bw=b.w;bd=b.d;}}
+
+  // ── TOP-DOWN VIEW: simple 2D coordinate conversion ──
+  if(S.viewMode==='top'){
+    const PW=S.palletW,PD=S.palletD,pad=40;
+    const scaleX=(LW-pad*2)/PW,scaleY=(LH-pad*2)/PD,sc=Math.min(scaleX,scaleY);
+    const ox=(LW-PW*sc)/2,oy=(LH-PD*sc)/2;
+    const rawGx=(sx-ox)/sc-bw/2, rawGy=(sy-oy)/sc-bd/2;
+    // Use same snap logic
+    const ohOn=document.getElementById('abOverhang').checked;
+    let oh=ohOn&&bw?Math.floor(Math.max(bw,bd)*0.49):0;
+    S.boxes.forEach(b=>{if(b.gx<0)oh=Math.max(oh,-b.gx);if(b.gy<0)oh=Math.max(oh,-b.gy);
+      if(b.gx+b.w>PW)oh=Math.max(oh,b.gx+b.w-PW);if(b.gy+b.d>PD)oh=Math.max(oh,b.gy+b.d-PD);});
+    const maxGx=(bw?PW-bw:PW-1)+oh,maxGy=(bd?PD-bd:PD-1)+oh;
+    const MAGNET=5;let bx=Math.round(rawGx),by=Math.round(rawGy);
+    const xC=new Set([0,PW]),yC=new Set([0,PD]);
+    if(bw>0){xC.add(PW-bw);for(let x=-oh;x<=PW+oh;x+=bw)xC.add(x);}
+    if(bd>0){yC.add(PD-bd);for(let y=-oh;y<=PD+oh;y+=bd)yC.add(y);}
+    S.boxes.forEach(b=>{xC.add(b.gx);xC.add(b.gx+b.w);yC.add(b.gy);yC.add(b.gy+b.d);
+      if(bw>0)xC.add(b.gx-bw);if(bd>0)yC.add(b.gy-bd);});
+    let dx=MAGNET;for(const x of xC){const d=Math.abs(rawGx-x);if(d<dx){dx=d;bx=x;}}
+    let dy=MAGNET;for(const y of yC){const d=Math.abs(rawGy-y);if(d<dy){dy=d;by=y;}}
+    return [Math.max(-oh,Math.min(maxGx,bx)),Math.max(-oh,Math.min(maxGy,by))];
+  }
+
+  // ── ISOMETRIC VIEW ──
   // Cursor range: always extend to cover existing overhanging boxes (for removal/move)
   // plus overhang zone when checkbox is on (for placement)
   let oh=0;
@@ -1333,6 +1451,11 @@ isoC.addEventListener('wheel',e=>{
 isoC.addEventListener('mousedown',e=>{ if(e.button===1){ e.preventDefault(); S.midDrag=true; S.dragLast={x:e.clientX,y:e.clientY}; isoC.style.cursor='grabbing'; } });
 window.addEventListener('mouseup',e=>{ if(e.button===1){ S.midDrag=false; isoC.style.cursor=''; } });
 
+document.getElementById('viewBtn').addEventListener('click',()=>{
+  S.viewMode=S.viewMode==='iso'?'top':'iso';
+  document.getElementById('viewBtn').textContent=S.viewMode==='iso'?'◫ Iso':'◳ Top';
+  render();
+});
 document.getElementById('modeBtn').addEventListener('click',()=>{
   S.mode=S.mode==='place'?'move':'place'; S.selId=null; updModeUI(); render();
 });
@@ -1406,6 +1529,7 @@ window.addEventListener('keydown',e=>{
   }
   if((e.key==='m'||e.key==='M')&&!e.ctrlKey&&!e.metaKey){ S.mode=S.mode==='place'?'move':'place'; S.selId=null; updModeUI(); render(); }
   if((e.key==='f'||e.key==='F')&&!e.ctrlKey&&!e.metaKey){ if(S.activeId) flipType(S.activeId); }
+  if((e.key==='t'||e.key==='T')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('viewBtn').click(); }
   if((e.key==='l'||e.key==='L')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('dupLayerBtn').click(); }
   if((e.key==='r'||e.key==='R')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('rmLayerBtn').click(); }
   if((e.key==='q'||e.key==='Q')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+3)&3; render(); toast(`View rotated ${S.viewRot*90}°`); }
