@@ -460,9 +460,9 @@ function _abLayouts(bw,bd,overhang){
 }
 
 function autoBuild(){
-  const maxH=parseInt(document.getElementById('abMaxH').value)||96;
+  const maxH=parseInt(document.getElementById('abMaxH').value)||86;
   const overhang=document.getElementById('abOverhang').checked;
-  const interlock=document.getElementById('abInterlock').checked;
+  const maxWt=parseFloat(document.getElementById('abMaxWt').value)||99999;
   const items=[];
   S.types.forEach(t=>{
     const e=document.getElementById('abq-'+t.id);
@@ -471,72 +471,103 @@ function autoBuild(){
   });
   if(!items.length){ toast('Set qty on box types first'); return; }
 
-  // For each type, try orientations → pick best (most boxes fit within maxH)
-  // Flat-only types: only orient 0,1 (W↔D swap, H stays as height)
-  // If interlock: also compute an alternate layout with swapped W↔D
-  const plans=[];
+  const PW=S.palletW,PD=S.palletD;
+  const ohW=overhang?Math.floor(PW*0.25):0, ohD=overhang?Math.floor(PD*0.25):0;
+  const effW=PW+ohW, effD=PD+ohD;
+
+  // For each type, find best orientation (maximize footprint fit)
+  const boxQueue=[];
+  const warns=[];
   for(const item of items){
-    const t=item.t, dims=[t.w,t.d,t.h], seen=new Set();
-    const maxOrient=t.flat?2:6;
-    let best=null;
+    const t=item.t, dims=[t.w,t.d,t.h];
+    const maxOrient=t.flat?2:6, seen=new Set();
+    let bestOri=null;
     for(let oi=0;oi<maxOrient;oi++){
       const p=_PERMS[oi];
-      const fw=dims[p[0]], fd=dims[p[1]], fh=dims[p[2]];
+      const fw=dims[p[0]],fd=dims[p[1]],fh=dims[p[2]];
       const key=fw+','+fd+','+fh;
-      if(seen.has(key)) continue; seen.add(key);
-      if(fh>maxH) continue;
-      const layout=_abLayouts(fw,fd,overhang);
-      if(!layout) continue;
-      // Alternate layout for interlocking (swap footprint W↔D)
-      const altLayout=interlock&&fw!==fd?_abLayouts(fd,fw,overhang):null;
-      const perLayer=layout.length;
-      const altPer=altLayout?altLayout.length:perLayer;
-      const avgPer=altLayout?Math.min(perLayer,altPer):perLayer;
-      const layersFit=Math.floor(maxH/fh);
-      const canPlace=Math.min(item.qty, layersFit*Math.max(perLayer,altPer));
-      const totalH=Math.ceil(canPlace/avgPer)*fh;
-      if(!best||canPlace>best.canPlace||(canPlace===best.canPlace&&totalH<best.totalH))
-        best={layout,altLayout,perLayer,altPer,fh,canPlace,totalH,fw,fd};
+      if(seen.has(key))continue;seen.add(key);
+      if(fw>effW&&fd>effD)continue; // too big either way
+      if(fh>maxH)continue;
+      // Score: prefer orientation that fits on pallet with least waste
+      const fits=(fw<=effW&&fd<=effD)||(fd<=effW&&fw<=effD);
+      if(!fits)continue;
+      const area=fw*fd;
+      if(!bestOri||area>bestOri.area) bestOri={fw,fd,fh,area};
     }
-    if(best) plans.push({t:item.t,qty:item.qty,...best});
-    else plans.push({t:item.t,qty:item.qty,canPlace:0});
+    if(!bestOri){warns.push(`${t.sku||t.name}: too large`);continue;}
+    // Add qty copies, sorted by footprint area desc (biggest first)
+    for(let i=0;i<item.qty;i++)
+      boxQueue.push({t,w:bestOri.fw,d:bestOri.fd,h:bestOri.fh,area:bestOri.area});
   }
 
-  // Sort: heaviest first (bottom), then largest footprint
-  // Sort: biggest footprint first (bottom), then heaviest
-  plans.sort((a,b)=>((b.fw||0)*(b.fd||0))-((a.fw||0)*(a.fd||0))||((b.t.weight||0)-(a.t.weight||0)));
+  // Sort: biggest footprint first, then heaviest — big items go first for better packing
+  boxQueue.sort((a,b)=>(b.area-a.area)||((b.t.weight||0)-(a.t.weight||0)));
 
-  const maxWt=parseFloat(document.getElementById('abMaxWt').value)||99999;
+  // ── HEIGHTMAP 3D BIN PACKER ──
+  // Tracks height at each 1-inch cell
+  const hmap=Array.from({length:effD},()=>new Float32Array(effW));
+
+  function findBest(bw,bd,bh){
+    let bestGx=-1,bestGy=-1,bestZ=Infinity;
+    // Try both footprint rotations
+    for(const[w,d]of [[bw,bd],[bd,bw]]){
+      if(w>effW||d>effD) continue;
+      for(let gy=0;gy<=effD-d;gy++){
+        for(let gx=0;gx<=effW-w;gx++){
+          let mz=0;
+          for(let dy=0;dy<d;dy++) for(let dx=0;dx<w;dx++)
+            mz=Math.max(mz,hmap[gy+dy][gx+dx]);
+          if(mz+bh<=maxH&&mz<bestZ){
+            bestZ=mz; bestGx=gx; bestGy=gy;
+            if(bestZ===0) return {gx:bestGx,gy:bestGy,gz:0,w,d};
+          }
+        }
+      }
+    }
+    return bestGx>=0?{gx:bestGx,gy:bestGy,gz:bestZ,w:0,d:0}:null;
+  }
+
+  // Optimized: track which w,d was best
+  function findBestFull(bw,bd,bh){
+    let bestGx=-1,bestGy=-1,bestZ=Infinity,bestW=bw,bestD=bd;
+    for(const[w,d]of [[bw,bd],[bd,bw]]){
+      if(w>effW||d>effD) continue;
+      for(let gy=0;gy<=effD-d;gy++){
+        for(let gx=0;gx<=effW-w;gx++){
+          let mz=0;
+          for(let dy=0;dy<d;dy++) for(let dx=0;dx<w;dx++)
+            mz=Math.max(mz,hmap[gy+dy][gx+dx]);
+          if(mz+bh<=maxH&&mz<bestZ){
+            bestZ=mz; bestGx=gx; bestGy=gy; bestW=w; bestD=d;
+            if(bestZ===0) return {gx:bestGx,gy:bestGy,gz:0,w:bestW,d:bestD};
+          }
+        }
+      }
+    }
+    return bestGx>=0?{gx:bestGx,gy:bestGy,gz:bestZ,w:bestW,d:bestD}:null;
+  }
 
   saveHist();
   S.boxes=[];
-  let z=0,total=0,totalWt=0;
-  const warns=[];
+  let total=0,totalWt=0;
 
-  for(const plan of plans){
-    if(!plan.layout){ warns.push(`${plan.t.name}: too large`);continue; }
-    let placed=0,layerNum=0;
-    const layerWt=(plan.t.weight||0)*(plan.altLayout&&layerNum%2===1?plan.altPer:plan.perLayer);
-    while(placed<plan.qty&&z+plan.fh<=maxH&&totalWt+layerWt<=maxWt){
-      // Alternate layout every other layer for interlocking
-      const useLayout=(plan.altLayout&&layerNum%2===1)?plan.altLayout:plan.layout;
-      let layerBoxCount=0;
-      for(const c of useLayout){
-        if(placed>=plan.qty) break;
-        S.boxes.push({id:S.nxtId++,gx:c.gx,gy:c.gy,gz:z,
-          w:c.w,d:c.d,h:plan.fh,color:plan.t.color,sku:plan.t.sku||'',name:plan.t.name});
-        placed++; layerBoxCount++;
-      }
-      totalWt+=(plan.t.weight||0)*layerBoxCount;
-      z+=plan.fh; layerNum++;
-    }
-    total+=placed;
-    if(placed<plan.qty) warns.push(`${plan.t.name}: ${placed}/${plan.qty}`);
+  for(const box of boxQueue){
+    if(totalWt+(box.t.weight||0)>maxWt) continue;
+    const pos=findBestFull(box.w,box.d,box.h);
+    if(!pos) continue;
+    S.boxes.push({id:S.nxtId++,gx:pos.gx,gy:pos.gy,gz:pos.gz,
+      w:pos.w,d:pos.d,h:box.h,color:box.t.color,sku:box.t.sku||'',name:box.t.name});
+    // Stamp heightmap
+    for(let dy=0;dy<pos.d;dy++) for(let dx=0;dx<pos.w;dx++)
+      hmap[pos.gy+dy][pos.gx+dx]=pos.gz+box.h;
+    total++; totalWt+=(box.t.weight||0);
   }
 
+  const peakH=S.boxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0);
   render();
-  if(warns.length) toast(`Placed ${total} (${z}" tall) — ${warns.join(', ')}`);
-  else toast(`${total} boxes, ${z}" tall`);
+  if(warns.length) toast(`Placed ${total} (${peakH}" tall) — ${warns.join(', ')}`);
+  else toast(`${total} boxes, ${peakH}" tall, ${Math.round(totalWt)}lb`);
 }
 
 // ─────────────────────────────────────────────────────
