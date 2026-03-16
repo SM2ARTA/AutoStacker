@@ -1885,35 +1885,40 @@ document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.l
 document.getElementById('exportBtn').addEventListener('click',exportSVG);
 
 // Explode play/pause animation
-let _expAnim=null, _expDir=1;
+let _expAnim=null;
 document.getElementById('explodePlayBtn').addEventListener('click',function(){
   const btn=this;
   if(_expAnim){cancelAnimationFrame(_expAnim);_expAnim=null;btn.textContent='▶';return;}
   btn.textContent='⏸';
-  if(S.explode>=0.95&&S.explodeH>=0.95) _expDir=-1;
-  else if(S.explode<=0.05&&S.explodeH<=0.05) _expDir=1;
   const vSlider=document.getElementById('explodeSlider');
   const hSlider=document.getElementById('explodeHSlider');
-  const dur=3000; // 3 seconds for full animation
-  let _startT=null;
-  const _startV=S.explode, _startH=S.explodeH;
+  const dur=3000, pause=800; // 3s animate, 0.8s hold at peak
+  let _startT=null, phase='out'; // out → hold → back → done
+  const _s0V=S.explode, _s0H=S.explodeH;
   function tick(ts){
     if(!_startT) _startT=ts;
-    const p=Math.min((ts-_startT)/dur,1);
-    const ease=p<0.5?2*p*p:(1-Math.pow(-2*p+2,2)/2); // easeInOutQuad
-    if(_expDir>0){
-      S.explode=_startV+(1-_startV)*ease;
-      S.explodeH=_startH+(1-_startH)*ease;
-    } else {
-      S.explode=_startV*(1-ease);
-      S.explodeH=_startH*(1-ease);
+    const elapsed=ts-_startT;
+    if(phase==='out'){
+      const p=Math.min(elapsed/dur,1);
+      const ease=p<0.5?2*p*p:(1-Math.pow(-2*p+2,2)/2);
+      S.explode=_s0V+(1-_s0V)*ease;
+      S.explodeH=_s0H+(1-_s0H)*ease;
+      if(p>=1){phase='hold';_startT=ts;}
+    } else if(phase==='hold'){
+      if(elapsed>=pause){phase='back';_startT=ts;}
+    } else if(phase==='back'){
+      const p=Math.min(elapsed/dur,1);
+      const ease=p<0.5?2*p*p:(1-Math.pow(-2*p+2,2)/2);
+      S.explode=1-ease;
+      S.explodeH=1-ease;
+      if(p>=1){
+        S.explode=0; S.explodeH=0;
+        vSlider.value=0; hSlider.value=0; render();
+        _expAnim=null; btn.textContent='▶'; return;
+      }
     }
     vSlider.value=S.explode*100; hSlider.value=S.explodeH*100;
     render();
-    if(p>=1){
-      _expDir*=-1;
-      _expAnim=null; btn.textContent='▶'; return;
-    }
     _expAnim=requestAnimationFrame(tick);
   }
   _expAnim=requestAnimationFrame(tick);
