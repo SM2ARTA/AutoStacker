@@ -83,7 +83,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .cv-wrap.mode-move{cursor:default}
 .cv-wrap.mode-select{cursor:pointer}
 .cv-wrap.has-selected{cursor:copy}
-#isoC{display:block;width:100%;height:100%}
+#isoC{display:block;width:100%;height:100%;touch-action:none}
 
 .mode-overlay{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.92);border:1px solid var(--blue);border-radius:20px;padding:5px 16px;pointer-events:none;white-space:nowrap;backdrop-filter:blur(4px);transition:opacity .2s}
 .mode-overlay .dot{width:7px;height:7px;border-radius:50%;background:var(--blue);animation:blink 1.4s infinite}
@@ -1874,51 +1874,106 @@ function gridPos(e){
   return snap(rx-bw/2,ry-bd/2);
 }
 
+// ── Unified Pointer Events for canvas (mouse + touch + pen) ──
 let _lastMx=-1,_lastMy=-1;
-isoC.addEventListener('mousemove',e=>{
-  if(S.midDrag){
+let _ptrDrag=false, _ptrStart=null, _ptrId=null; // track active pointer for pan/tap
+const _TAP_THRESHOLD=8; // px movement to distinguish tap from drag
+
+function _reHover(){ if(_lastMx>=0&&S.hGx!==null){ const[gx,gy]=gridPos({clientX:_lastMx,clientY:_lastMy}); S.hGx=gx; S.hGy=gy; } }
+
+isoC.addEventListener('pointerdown',e=>{
+  if(_ptrId!==null&&e.pointerId!==_ptrId) return; // ignore second finger
+  _ptrId=e.pointerId; isoC.setPointerCapture(e.pointerId);
+  // Blur focused inputs so keyboard shortcuts work on canvas
+  if(document.activeElement&&document.activeElement.tagName==='INPUT') document.activeElement.blur();
+  _ptrStart={x:e.clientX,y:e.clientY,t:Date.now()};
+  _ptrDrag=false;
+  // Touch/pen: start drag immediately. Mouse: only middle-button starts drag.
+  if(e.pointerType!=='mouse'){
+    S.dragLast={x:e.clientX,y:e.clientY};
+  } else if(e.button===1){
+    e.preventDefault(); S.midDrag=true; S.dragLast={x:e.clientX,y:e.clientY}; isoC.style.cursor='grabbing';
+  }
+});
+
+isoC.addEventListener('pointermove',e=>{
+  if(e.pointerId!==_ptrId&&_ptrId!==null&&e.pointerType!=='mouse') return;
+  // Pan: touch drag or mouse middle-drag
+  const isPanning=(e.pointerType!=='mouse'&&_ptrId!==null&&_ptrStart)||S.midDrag;
+  if(isPanning&&S.dragLast){
     const dx=e.clientX-S.dragLast.x, dy=e.clientY-S.dragLast.y;
-    if(dx||dy){ S.panX+=dx; S.panY+=dy; S.dragLast={x:e.clientX,y:e.clientY}; scheduleRender(); }
+    if(dx||dy){
+      S.panX+=dx; S.panY+=dy; S.dragLast={x:e.clientX,y:e.clientY};
+      if(_ptrStart&&(Math.abs(e.clientX-_ptrStart.x)>_TAP_THRESHOLD||Math.abs(e.clientY-_ptrStart.y)>_TAP_THRESHOLD)) _ptrDrag=true;
+      scheduleRender();
+    }
     return;
   }
-  // Skip gridPos() if raw pixel hasn't moved enough to change snap result
-  const mx=e.clientX,my=e.clientY;
-  if(Math.abs(mx-_lastMx)<1&&Math.abs(my-_lastMy)<1) return;
-  _lastMx=mx; _lastMy=my;
-  const [gx,gy]=gridPos(e);
-  if(gx!==S.hGx||gy!==S.hGy){ S.hGx=gx; S.hGy=gy; scheduleRender(); }
+  // Hover preview — mouse only (touch has no persistent cursor)
+  if(e.pointerType==='mouse'){
+    const mx=e.clientX,my=e.clientY;
+    if(Math.abs(mx-_lastMx)<1&&Math.abs(my-_lastMy)<1) return;
+    _lastMx=mx; _lastMy=my;
+    const [gx,gy]=gridPos(e);
+    if(gx!==S.hGx||gy!==S.hGy){ S.hGx=gx; S.hGy=gy; scheduleRender(); }
+  }
 });
-isoC.addEventListener('mouseleave',()=>{ S.hGx=null; S.hGy=null; _lastMx=-1; _lastMy=-1; scheduleRender(); });
-// Recompute hover grid position from last known screen coords (after projection changes)
-function _reHover(){ if(_lastMx>=0&&S.hGx!==null){ const[gx,gy]=gridPos({clientX:_lastMx,clientY:_lastMy}); S.hGx=gx; S.hGy=gy; } }
-isoC.addEventListener('mousedown',()=>{
-  // Blur any focused input so keyboard shortcuts (F, M, etc.) work on canvas
-  if(document.activeElement&&document.activeElement.tagName==='INPUT') document.activeElement.blur();
-});
-isoC.addEventListener('click',e=>{
+
+isoC.addEventListener('pointerup',e=>{
+  if(e.pointerId!==_ptrId) return;
+  isoC.releasePointerCapture(e.pointerId);
+  // Mouse middle-button pan end
+  if(e.pointerType==='mouse'&&e.button===1){ S.midDrag=false; isoC.style.cursor=''; _ptrId=null; _ptrStart=null; return; }
+  // Mouse left-click: handle only if not middle-drag
+  if(e.pointerType==='mouse'&&e.button!==0){ _ptrId=null; _ptrStart=null; return; }
+  // Tap detection: was it a tap or a drag?
+  const wasDrag=_ptrDrag;
+  _ptrId=null; _ptrStart=null; _ptrDrag=false;
+  if(e.pointerType!=='mouse'){
+    S.dragLast=null;
+    // Clear touch hover state
+    S.hGx=null; S.hGy=null; _lastMx=-1; _lastMy=-1;
+  }
+  if(wasDrag) { if(e.pointerType!=='mouse') scheduleRender(); return; } // was a pan, not a tap
+  // ── Tap / click action ──
   const [gx,gy]=gridPos(e);
   if(S.mode==='place') placeBox(gx,gy);
   else if(S.mode==='select'){
     const hits=S.boxes.filter(b=>gx>=b.gx&&gx<b.gx+b.w&&gy>=b.gy&&gy<b.gy+b.d);
     if(hits.length){
       const top=hits.reduce((a,b)=>b.gz+b.h>a.gz+a.h?b:a);
-      S.selId=S.selId===top.id?null:top.id; // toggle if clicking same box
+      S.selId=S.selId===top.id?null:top.id;
     } else S.selId=null;
     updModeUI(); scheduleRender();
   }
   else S.selId===null ? pickUp(gx,gy) : dropAt(gx,gy);
 });
+
+isoC.addEventListener('pointercancel',e=>{
+  if(e.pointerId!==_ptrId) return;
+  _ptrId=null; _ptrStart=null; _ptrDrag=false; S.midDrag=false; S.dragLast=null;
+  isoC.style.cursor='';
+});
+
+isoC.addEventListener('pointerleave',e=>{
+  if(e.pointerType==='mouse'){ S.hGx=null; S.hGy=null; _lastMx=-1; _lastMy=-1; scheduleRender(); }
+});
+
+// Context menu (mouse right-click only)
 isoC.addEventListener('contextmenu',e=>{
   e.preventDefault();
   if(S.mode==='move'||S.mode==='select'){ S.selId=null; updModeUI(); scheduleRender(); return; }
   const [gx,gy]=gridPos(e); removeTop(gx,gy);
 });
+
+// Wheel zoom (mouse/trackpad only — pinch zoom deferred)
 isoC.addEventListener('wheel',e=>{
   e.preventDefault();
   S.zoom=Math.max(0.15,Math.min(5, S.zoom*(e.deltaY<0?1.1:0.91))); _reHover(); scheduleRender();
 },{passive:false});
-isoC.addEventListener('mousedown',e=>{ if(e.button===1){ e.preventDefault(); S.midDrag=true; S.dragLast={x:e.clientX,y:e.clientY}; isoC.style.cursor='grabbing'; } });
-window.addEventListener('mouseup',e=>{ if(e.button===1){ S.midDrag=false; isoC.style.cursor=''; } });
+
+// Fallback: end middle-drag if pointer leaves window (mouseup on window)
+window.addEventListener('pointerup',e=>{ if(S.midDrag&&e.button===1){ S.midDrag=false; isoC.style.cursor=''; } });
 
 document.getElementById('viewBtn').addEventListener('click',()=>{
   S.viewMode=S.viewMode==='iso'?'top':'iso';
