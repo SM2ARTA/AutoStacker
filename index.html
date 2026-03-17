@@ -240,11 +240,11 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="tb-sep"></div>
       <label style="display:flex;align-items:center;gap:4px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate layers vertically">
         <span>↕</span>
-        <input type="range" id="explodeSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explode=this.value/100;render()">
+        <input type="range" id="explodeSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explode=this.value/100;scheduleRender()">
       </label>
       <label style="display:flex;align-items:center;gap:4px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate boxes horizontally">
         <span>↔</span>
-        <input type="range" id="explodeHSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explodeH=this.value/100;render()">
+        <input type="range" id="explodeHSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explodeH=this.value/100;scheduleRender()">
       </label>
       <button class="btn btn-ghost btn-sm" id="explodePlayBtn" style="padding:3px 7px;font-size:0.65rem;min-width:0" title="Animate explode">▶</button>
       <div class="tb-spacer"></div>
@@ -400,8 +400,8 @@ function inBounds(gx,gy,w,d){
   return sup>=area*0.5;
 }
 function saveHist(){ S.past.push(JSON.stringify(S.boxes)); if(S.past.length>80) S.past.shift(); S.future=[]; updUR(); }
-function undo(){ if(!S.past.length) return; S.future.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.past.pop()); updUR(); render(); }
-function redo(){ if(!S.future.length) return; S.past.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.future.pop()); updUR(); render(); }
+function undo(){ if(!S.past.length) return; S.future.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.past.pop()); updUR(); scheduleRender(); }
+function redo(){ if(!S.future.length) return; S.past.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.future.pop()); updUR(); scheduleRender(); }
 function updUR(){ document.getElementById('undoBtn').disabled=!S.past.length; document.getElementById('redoBtn').disabled=!S.future.length; }
 
 function placeBox(gx,gy){
@@ -410,7 +410,7 @@ function placeBox(gx,gy){
   if(!inBounds(gx,gy,w,d)){ toast('Out of bounds'); return; }
   saveHist();
   S.boxes.push({id:S.nxtId++,gx,gy,gz:gravZ(gx,gy,w,d),w,d,h,color:t.color,sku:t.sku||'',name:t.name});
-  render();
+  scheduleRender();
 }
 
 function removeTop(gx,gy){
@@ -420,14 +420,14 @@ function removeTop(gx,gy){
   saveHist();
   S.boxes=S.boxes.filter(b=>b.id!==top.id);
   S.selId=null;
-  render();
+  scheduleRender();
 }
 
 function pickUp(gx,gy){
   const hits=S.boxes.filter(b=>gx>=b.gx&&gx<b.gx+b.w&&gy>=b.gy&&gy<b.gy+b.d);
   if(!hits.length){ toast('No box here'); return; }
   S.selId=hits.reduce((a,b)=>b.gz+b.h>a.gz+a.h?b:a).id;
-  updModeUI(); render();
+  updModeUI(); scheduleRender();
   toast('Picked up — click destination to place');
 }
 
@@ -562,7 +562,7 @@ function autoBuild(){
   }
 
   const peakH=S.boxes.length?S.boxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0):0;
-  render();
+  scheduleRender();
   if(warns.length) toast(`Placed ${total} (${peakH}" tall) — ${warns.join(', ')}`);
   else toast(`${total} boxes, ${peakH}" tall, ${Math.round(totalWt)}lb`);
 }
@@ -609,7 +609,7 @@ function autoFillType(typeId){
   // Update qty field
   const qe=document.getElementById('abq-'+t.id);
   if(qe) qe.value=total;
-  render();
+  scheduleRender();
   toast(`Auto-filled: ${total}× ${t.sku||t.name}, ${layerNum} layers, ${z}" tall`);
 }
 
@@ -618,7 +618,7 @@ function dropAt(gx,gy){
   if(!inBounds(gx,gy,b.w,b.d)){ toast('Out of bounds'); return; }
   saveHist();
   b.gx=gx; b.gy=gy; b.gz=gravZ(gx,gy,b.w,b.d,b.id);
-  S.selId=null; updModeUI(); render();
+  S.selId=null; updModeUI(); scheduleRender();
   toast('Moved ✓');
 }
 
@@ -987,7 +987,7 @@ function renderBTL(){
   el.querySelectorAll('.bti').forEach(el=>{
     el.addEventListener('click',e=>{
       if(e.target.closest('[data-flip],[data-del],[data-wt],[data-flat],[data-autofill],[data-dim]')) return;
-      S.activeId=el.dataset.id; renderBTL(); updStats(); render();
+      S.activeId=el.dataset.id; renderBTL(); updStats(); scheduleRender();
     });
   });
   // Inline dimension editing — click span to edit W/D/H
@@ -1016,7 +1016,7 @@ function renderBTL(){
               b.w=tw(t); b.d=td(t); b.h=th(t);
             }
           });
-          render();
+          scheduleRender();
         }
         renderBTL(); updStats();
       };
@@ -1052,7 +1052,7 @@ function renderBTL(){
     inp.addEventListener('input',e=>{e.stopPropagation();
       const t=S.types.find(x=>x.id===inp.dataset.clr);
       if(t){ t.color=inp.value; inp.parentElement.style.background=inp.value;
-        S.boxes.forEach(b=>{if(b.sku===t.sku&&b.name===t.name) b.color=inp.value;}); render(); }
+        S.boxes.forEach(b=>{if(b.sku===t.sku&&b.name===t.name) b.color=inp.value;}); scheduleRender(); }
     });
   });
   // Auto-fill button per type
@@ -1066,7 +1066,7 @@ function flipType(id){
   if(t.flat){
     // Flat only: just swap W↔D (orient 0↔1), keep H as height
     t.orient=(t.orient||0)===0?1:0;
-    renderBTL(); updStats(); render();
+    renderBTL(); updStats(); scheduleRender();
     toast(`Rotated → ${tw(t)}" × ${td(t)}" (flat)`);
     return;
   }
@@ -1075,7 +1075,7 @@ function flipType(id){
   for(let i=0;i<6;i++){const p=_PERMS[i];const k=dims[p[0]]+','+dims[p[1]]+','+dims[p[2]];if(!seen.has(k)){seen.add(k);unique.push(i);}}
   const cur=unique.indexOf(t.orient||0);
   t.orient=unique[(cur+1)%unique.length];
-  renderBTL(); updStats(); render();
+  renderBTL(); updStats(); scheduleRender();
   toast(`Rotated → ${tw(t)}" × ${td(t)}" × ${th(t)}"`);
 }
 
@@ -1083,10 +1083,15 @@ function flipType(id){
 // RENDER
 // ─────────────────────────────────────────────────────
 function render(){
+  _renderPending=false;
   const r=cvWrap.getBoundingClientRect(); LW=r.width; LH=r.height;
   isoC.style.width=LW+'px'; isoC.style.height=LH+'px';
   if(S.viewMode==='top') renderTopView(); else renderIso();
   renderTop(); updStats();
+}
+let _renderPending=false;
+function scheduleRender(){
+  if(!_renderPending){ _renderPending=true; requestAnimationFrame(render); }
 }
 
 // ─────────────────────────────────────────────────────
@@ -1808,11 +1813,11 @@ function gridPos(e){
 }
 
 isoC.addEventListener('mousemove',e=>{
-  if(S.midDrag){ S.panX+=e.clientX-S.dragLast.x; S.panY+=e.clientY-S.dragLast.y; S.dragLast={x:e.clientX,y:e.clientY}; render(); return; }
+  if(S.midDrag){ S.panX+=e.clientX-S.dragLast.x; S.panY+=e.clientY-S.dragLast.y; S.dragLast={x:e.clientX,y:e.clientY}; scheduleRender(); return; }
   const [gx,gy]=gridPos(e);
-  if(gx!==S.hGx||gy!==S.hGy){ S.hGx=gx; S.hGy=gy; render(); }
+  if(gx!==S.hGx||gy!==S.hGy){ S.hGx=gx; S.hGy=gy; scheduleRender(); }
 });
-isoC.addEventListener('mouseleave',()=>{ S.hGx=null; S.hGy=null; render(); });
+isoC.addEventListener('mouseleave',()=>{ S.hGx=null; S.hGy=null; scheduleRender(); });
 isoC.addEventListener('mousedown',()=>{
   // Blur any focused input so keyboard shortcuts (F, M, etc.) work on canvas
   if(document.activeElement&&document.activeElement.tagName==='INPUT') document.activeElement.blur();
@@ -1826,18 +1831,18 @@ isoC.addEventListener('click',e=>{
       const top=hits.reduce((a,b)=>b.gz+b.h>a.gz+a.h?b:a);
       S.selId=S.selId===top.id?null:top.id; // toggle if clicking same box
     } else S.selId=null;
-    updModeUI(); render();
+    updModeUI(); scheduleRender();
   }
   else S.selId===null ? pickUp(gx,gy) : dropAt(gx,gy);
 });
 isoC.addEventListener('contextmenu',e=>{
   e.preventDefault();
-  if(S.mode==='move'||S.mode==='select'){ S.selId=null; updModeUI(); render(); return; }
+  if(S.mode==='move'||S.mode==='select'){ S.selId=null; updModeUI(); scheduleRender(); return; }
   const [gx,gy]=gridPos(e); removeTop(gx,gy);
 });
 isoC.addEventListener('wheel',e=>{
   e.preventDefault();
-  S.zoom=Math.max(0.15,Math.min(5, S.zoom*(e.deltaY<0?1.1:0.91))); render();
+  S.zoom=Math.max(0.15,Math.min(5, S.zoom*(e.deltaY<0?1.1:0.91))); scheduleRender();
 },{passive:false});
 isoC.addEventListener('mousedown',e=>{ if(e.button===1){ e.preventDefault(); S.midDrag=true; S.dragLast={x:e.clientX,y:e.clientY}; isoC.style.cursor='grabbing'; } });
 window.addEventListener('mouseup',e=>{ if(e.button===1){ S.midDrag=false; isoC.style.cursor=''; } });
@@ -1845,10 +1850,10 @@ window.addEventListener('mouseup',e=>{ if(e.button===1){ S.midDrag=false; isoC.s
 document.getElementById('viewBtn').addEventListener('click',()=>{
   S.viewMode=S.viewMode==='iso'?'top':'iso';
   document.getElementById('viewBtn').textContent=S.viewMode==='iso'?'◫ Iso':'◳ Top';
-  render();
+  scheduleRender();
 });
 document.getElementById('modeBtn').addEventListener('click',()=>{
-  S.mode=S.mode==='place'?'select':S.mode==='select'?'move':'place'; S.selId=null; updModeUI(); render();
+  S.mode=S.mode==='place'?'select':S.mode==='select'?'move':'place'; S.selId=null; updModeUI(); scheduleRender();
 });
 document.getElementById('flipBtn').addEventListener('click',()=>{ if(S.activeId) flipType(S.activeId); });
 document.getElementById('addTypeBtn').addEventListener('click',()=>{
@@ -1863,13 +1868,13 @@ document.getElementById('addTypeBtn').addEventListener('click',()=>{
   const id='u'+S.nxtId++;
   S.types.push({id,sku,name,w,d,h,color,orient:0,weight,flat});
   S.activeId=id; document.getElementById('nSku').value=''; document.getElementById('nName').value='';
-  renderBTL(); updStats(); render();
+  renderBTL(); updStats(); scheduleRender();
   toast(`Added: ${sku?sku+' ':''}${name}  ${w}"×${d}"×${h}"`);
 });
 document.getElementById('applyP').addEventListener('click',()=>{
   S.palletW=parseInt(document.getElementById('pw').value)||48;
   S.palletD=parseInt(document.getElementById('pd').value)||40;
-  S.boxes=[]; S.past=[]; S.future=[]; updUR(); render();
+  S.boxes=[]; S.past=[]; S.future=[]; updUR(); render(); // immediate: must show empty pallet
   toast(`Pallet: ${S.palletW}"×${S.palletD}"`);
 });
 document.getElementById('undoBtn').addEventListener('click',undo);
@@ -1888,7 +1893,7 @@ document.getElementById('dupLayerBtn').addEventListener('click',()=>{
   topLayer.forEach(b=>{
     S.boxes.push({id:S.nxtId++,gx:b.gx,gy:b.gy,gz:newZ,w:b.w,d:b.d,h:b.h,color:b.color,sku:b.sku||'',name:b.name});
   });
-  render();
+  scheduleRender();
   toast(`Duplicated ${topLayer.length} boxes → layer at ${newZ}"`);
 });
 document.getElementById('rmLayerBtn').addEventListener('click',()=>{
@@ -1898,10 +1903,10 @@ document.getElementById('rmLayerBtn').addEventListener('click',()=>{
   if(!topLayer.length) return;
   saveHist();
   S.boxes=S.boxes.filter(b=>b.gz!==topZ);
-  render();
+  scheduleRender();
   toast(`Removed ${topLayer.length} boxes from top layer`);
 });
-document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; render(); toast('Cleared'); });
+document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; render(); toast('Cleared'); }); // immediate: must show empty pallet
 document.getElementById('exportBtn').addEventListener('click',previewSVG);
 
 // Explode play/pause animation
@@ -1954,24 +1959,24 @@ window.addEventListener('keydown',e=>{
   const tag=document.activeElement?.tagName;
   if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
   if(e.key==='Escape'){
-    if(S.selId){ S.selId=null; updModeUI(); render(); return; }
-    if(S.mode!=='place'){ S.mode='place'; S.selId=null; updModeUI(); render(); }
+    if(S.selId){ S.selId=null; updModeUI(); scheduleRender(); return; }
+    if(S.mode!=='place'){ S.mode='place'; S.selId=null; updModeUI(); scheduleRender(); }
   }
-  if((e.key==='m'||e.key==='M')&&!e.ctrlKey&&!e.metaKey){ S.mode=S.mode==='place'?'select':S.mode==='select'?'move':'place'; S.selId=null; updModeUI(); render(); }
+  if((e.key==='m'||e.key==='M')&&!e.ctrlKey&&!e.metaKey){ S.mode=S.mode==='place'?'select':S.mode==='select'?'move':'place'; S.selId=null; updModeUI(); scheduleRender(); }
   if((e.key==='f'||e.key==='F')&&!e.ctrlKey&&!e.metaKey){ if(S.activeId) flipType(S.activeId); }
   if((e.key==='t'||e.key==='T')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('viewBtn').click(); }
   if((e.key==='l'||e.key==='L')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('dupLayerBtn').click(); }
   if((e.key==='r'||e.key==='R')&&!e.ctrlKey&&!e.metaKey){ document.getElementById('rmLayerBtn').click(); }
-  if((e.key==='q'||e.key==='Q')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+3)&3; render(); toast(`View rotated ${S.viewRot*90}°`); }
-  if((e.key==='e'||e.key==='E')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+1)&3; render(); toast(`View rotated ${S.viewRot*90}°`); }
+  if((e.key==='q'||e.key==='Q')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+3)&3; scheduleRender(); toast(`View rotated ${S.viewRot*90}°`); }
+  if((e.key==='e'||e.key==='E')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+1)&3; scheduleRender(); toast(`View rotated ${S.viewRot*90}°`); }
   if(e.key==='Delete'||e.key==='Backspace'){
     if(!S.boxes.length) return;
     if(S.mode==='select'&&S.selId!==null){
       const b=S.boxes.find(x=>x.id===S.selId);
       saveHist(); S.boxes=S.boxes.filter(x=>x.id!==S.selId); S.selId=null;
-      updModeUI(); render(); toast(b?`Removed ${b.sku||b.name}`:'Removed');
+      updModeUI(); scheduleRender(); toast(b?`Removed ${b.sku||b.name}`:'Removed');
     } else if(S.hGx!==null) removeTop(S.hGx,S.hGy);
-    else { saveHist(); S.boxes.pop(); render(); toast('Removed last box'); }
+    else { saveHist(); S.boxes.pop(); scheduleRender(); toast('Removed last box'); }
   }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){ e.preventDefault(); undo(); }
   if((e.ctrlKey||e.metaKey)&&(e.shiftKey&&e.key==='z'||e.key==='y')){ e.preventDefault(); redo(); }
@@ -1980,7 +1985,7 @@ window.addEventListener('keydown',e=>{
 let toastT;
 function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),1900); }
 
-new ResizeObserver(()=>render()).observe(cvWrap);
+new ResizeObserver(()=>scheduleRender()).observe(cvWrap);
 renderBTL(); updModeUI(); render();
 
 // ─────────────────────────────────────────────────────
