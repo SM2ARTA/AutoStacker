@@ -407,11 +407,12 @@ function hasOverlap(gx,gy,w,d,gz,h,excl){
   return false;
 }
 function saveHist(){ S.past.push(JSON.stringify(S.boxes)); if(S.past.length>80) S.past.shift(); S.future=[]; updUR(); }
-function undo(){ if(!S.past.length) return; S.future.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.past.pop()); updUR(); _isoDirty(); scheduleRender(); }
-function redo(){ if(!S.future.length) return; S.past.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.future.pop()); updUR(); _isoDirty(); scheduleRender(); }
+function undo(){ if(_abBusy||!S.past.length) return; S.future.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.past.pop()); updUR(); _isoDirty(); scheduleRender(); }
+function redo(){ if(_abBusy||!S.future.length) return; S.past.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.future.pop()); updUR(); _isoDirty(); scheduleRender(); }
 function updUR(){ document.getElementById('undoBtn').disabled=!S.past.length; document.getElementById('redoBtn').disabled=!S.future.length; }
 
 function placeBox(gx,gy){
+  if(_abBusy) return;
   const t=atype(); if(!t) return;
   const w=tw(t),d=td(t),h=th(t);
   if(!inBounds(gx,gy,w,d)){ toast('Out of bounds'); return; }
@@ -423,6 +424,7 @@ function placeBox(gx,gy){
 }
 
 function removeTop(gx,gy){
+  if(_abBusy) return;
   const hits=S.boxes.filter(b=>gx>=b.gx&&gx<b.gx+b.w&&gy>=b.gy&&gy<b.gy+b.d);
   if(!hits.length) return;
   const top=hits.reduce((a,b)=>b.gz+b.h>a.gz+a.h?b:a);
@@ -433,6 +435,7 @@ function removeTop(gx,gy){
 }
 
 function pickUp(gx,gy){
+  if(_abBusy) return;
   const hits=S.boxes.filter(b=>gx>=b.gx&&gx<b.gx+b.w&&gy>=b.gy&&gy<b.gy+b.d);
   if(!hits.length){ toast('No box here'); return; }
   S.selId=hits.reduce((a,b)=>b.gz+b.h>a.gz+a.h?b:a).id;
@@ -586,6 +589,7 @@ function _abApplyResult(r,label){
 }
 
 function autoBuild(){
+  if(_abBusy) return;
   const settings=_abReadSettings();
   const items=[];
   S.types.forEach(t=>{
@@ -608,6 +612,7 @@ function autoBuild(){
 }
 
 function autoFillType(typeId){
+  if(_abBusy) return;
   const t=S.types.find(x=>x.id===typeId);
   if(!t){toast('Type not found');return;}
   const settings=_abReadSettings();
@@ -626,6 +631,7 @@ function autoFillType(typeId){
 }
 
 function dropAt(gx,gy){
+  if(_abBusy) return;
   const b=S.boxes.find(x=>x.id===S.selId); if(!b) return;
   if(!inBounds(gx,gy,b.w,b.d)){ toast('Out of bounds'); return; }
   const gz=gravZ(gx,gy,b.w,b.d,b.id);
@@ -814,8 +820,17 @@ function renderIso(){
     return [(bcx-_pcx)*_hStr, (bcy-_pcy)*_hStr];
   };
 
-  // Place mode hover preview
-  if(S.hGx!==null&&S.mode==='place'){
+  // Busy indicator
+  if(_abBusy){
+    ctx.save(); ctx.globalAlpha=0.7;
+    ctx.font='600 '+Math.max(12,14*S.zoom)+'px Barlow Condensed,sans-serif';
+    ctx.fillStyle='var(--acc,#F5A623)'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('Packing…',LW/2,LH/2);
+    ctx.restore();
+  }
+
+  // Place mode hover preview (suppressed during worker busy)
+  if(!_abBusy&&S.hGx!==null&&S.mode==='place'){
     const t=atype(); if(t){
       const w=tw(t),d=td(t),h=th(t), gz=gravZ(S.hGx,S.hGy,w,d), ok=inBounds(S.hGx,S.hGy,w,d)&&!hasOverlap(S.hGx,S.hGy,w,d,gz,h);
       if(ok){
@@ -833,8 +848,8 @@ function renderIso(){
     }
   }
 
-  // Move mode drop preview
-  if(S.hGx!==null&&S.mode==='move'&&S.selId!==null){
+  // Move mode drop preview (suppressed during worker busy)
+  if(!_abBusy&&S.hGx!==null&&S.mode==='move'&&S.selId!==null){
     const b=S.boxes.find(x=>x.id===S.selId); if(b){
       const _mgz=gravZ(S.hGx,S.hGy,b.w,b.d,b.id);
       const ok=inBounds(S.hGx,S.hGy,b.w,b.d)&&!hasOverlap(S.hGx,S.hGy,b.w,b.d,_mgz,b.h,b.id);
@@ -1077,7 +1092,7 @@ document.getElementById('btl').addEventListener('click',e=>{
     dimSp.replaceWith(inp); inp.focus(); inp.select();
     const commit=()=>{
       const v=parseFloat(inp.value);
-      if(v>0&&v!==cur){
+      if(v>0&&v!==cur&&!_abBusy){
         if(rawIdx===0) t.w=v; else if(rawIdx===1) t.d=v; else t.h=v;
         S.boxes.forEach(b=>{
           if(b.sku===t.sku&&b.name===t.name){ b.w=tw(t); b.d=td(t); b.h=th(t); }
@@ -2005,6 +2020,7 @@ document.getElementById('addTypeBtn').addEventListener('click',()=>{
   toast(`Added: ${sku?sku+' ':''}${name}  ${w}"×${d}"×${h}"`);
 });
 document.getElementById('applyP').addEventListener('click',()=>{
+  if(_abBusy) return;
   S.palletW=parseInt(document.getElementById('pw').value)||48;
   S.palletD=parseInt(document.getElementById('pd').value)||40;
   S.boxes=[]; S.past=[]; S.future=[]; updUR(); _isoDirty(); render(); // immediate: must show empty pallet
@@ -2013,6 +2029,7 @@ document.getElementById('applyP').addEventListener('click',()=>{
 document.getElementById('undoBtn').addEventListener('click',undo);
 document.getElementById('redoBtn').addEventListener('click',redo);
 document.getElementById('dupLayerBtn').addEventListener('click',()=>{
+  if(_abBusy) return;
   if(!S.boxes.length){toast('No boxes to duplicate');return;}
   // Find the topmost layer (highest gz)
   const topZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz),0);
@@ -2030,6 +2047,7 @@ document.getElementById('dupLayerBtn').addEventListener('click',()=>{
   toast(`Duplicated ${topLayer.length} boxes → layer at ${newZ}"`);
 });
 document.getElementById('rmLayerBtn').addEventListener('click',()=>{
+  if(_abBusy) return;
   if(!S.boxes.length){toast('No boxes');return;}
   const topZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz),0);
   const topLayer=S.boxes.filter(b=>b.gz===topZ);
@@ -2039,7 +2057,7 @@ document.getElementById('rmLayerBtn').addEventListener('click',()=>{
   _isoDirty(); scheduleRender();
   toast(`Removed ${topLayer.length} boxes from top layer`);
 });
-document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; _isoDirty(); render(); toast('Cleared'); }); // immediate: must show empty pallet
+document.getElementById('clearBtn').addEventListener('click',()=>{ if(_abBusy||!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; _isoDirty(); render(); toast('Cleared'); }); // immediate: must show empty pallet
 document.getElementById('exportBtn').addEventListener('click',previewSVG);
 
 // Explode play/pause animation
@@ -2103,7 +2121,7 @@ window.addEventListener('keydown',e=>{
   if((e.key==='q'||e.key==='Q')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+3)&3; _isoDirty(); _reHover(); scheduleRender(); toast(`View rotated ${S.viewRot*90}°`); }
   if((e.key==='e'||e.key==='E')&&!e.ctrlKey&&!e.metaKey){ S.viewRot=(S.viewRot+1)&3; _isoDirty(); _reHover(); scheduleRender(); toast(`View rotated ${S.viewRot*90}°`); }
   if(e.key==='Delete'||e.key==='Backspace'){
-    if(!S.boxes.length) return;
+    if(_abBusy||!S.boxes.length) return;
     if(S.mode==='select'&&S.selId!==null){
       const b=S.boxes.find(x=>x.id===S.selId);
       saveHist(); S.boxes=S.boxes.filter(x=>x.id!==S.selId); S.selId=null;
@@ -2189,6 +2207,7 @@ function _makeModal(html){
 
 // ── SAVE MODAL ──
 async function showSaveModal(){
+  if(_abBusy){toast('Packing in progress…');return;}
   const idx=await _psbLoadIndex();
   const box=_makeModal(`
     <div class="modal-title">Save Pallet</div>
@@ -2228,6 +2247,7 @@ async function showSaveModal(){
 
 // ── LOAD MODAL ──
 async function showLoadModal(){
+  if(_abBusy){toast('Packing in progress…');return;}
   const idx=await _psbLoadIndex();
   if(!idx.length){toast('No saved pallets');return;}
   const box=_makeModal(`
