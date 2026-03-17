@@ -586,13 +586,12 @@ function _abApplyResult(r){
 // Sync fallback — eval worker code on main thread if Worker creation fails
 let _abSyncFn=null;
 function _abRunSync(msg){
-  if(!_abSyncFn) _abSyncFn=new Function('d',_WORKER_SRC.replace('self.onmessage=function(e){\n  const d=e.data;','').replace(/self\.postMessage\((.*?)\);/g,'return $1;').replace('};',''));
-  // Fallback: just run doBuild/doFill directly by evaling the worker source
-  try{
-    const PERMS=[[0,1,2],[1,0,2],[0,2,1],[2,0,1],[1,2,0],[2,1,0]];
-    const fn=new Function('PERMS','msg',`${_WORKER_SRC.split('self.onmessage')[0]}\nreturn msg.cmd==='build'?doBuild(msg):doFill(msg);`);
-    return fn(PERMS,msg);
-  }catch(e){return{error:e.message};}
+  if(!_abSyncFn){
+    try{_abSyncFn=new Function('PERMS','msg',`${_WORKER_SRC.split('self.onmessage')[0]}\nreturn msg.cmd==='build'?doBuild(msg):doFill(msg);`);}
+    catch(e){return{error:'Sync fallback init failed: '+e.message};}
+  }
+  try{return _abSyncFn([[0,1,2],[1,0,2],[0,2,1],[2,0,1],[1,2,0],[2,1,0]],msg);}
+  catch(e){return{error:e.message};}
 }
 
 function _abDispatch(msg,onResult){
@@ -603,8 +602,7 @@ function _abDispatch(msg,onResult){
   } else {
     // Sync fallback — blocks UI but works
     const r=_abRunSync(msg);
-    _abDone();
-    onResult({ver:msg.ver,...r});
+    onResult({ver:msg.ver,...r}); // callback calls _abApplyResult which calls _abDone
   }
 }
 
@@ -1168,17 +1166,18 @@ document.getElementById('btl').addEventListener('click',e=>{
 document.getElementById('btl').addEventListener('change',e=>{
   // Weight
   const wtInp=e.target.closest('[data-wt]');
-  if(wtInp){ e.stopPropagation(); const t=S.types.find(x=>x.id===wtInp.dataset.wt); if(t) t.weight=parseFloat(wtInp.value)||0; return; }
+  if(wtInp){ e.stopPropagation(); const t=S.types.find(x=>x.id===wtInp.dataset.wt); if(t){saveHist();t.weight=parseFloat(wtInp.value)||0;} return; }
   // Flat
   const flatCb=e.target.closest('[data-flat]');
   if(flatCb){ e.stopPropagation(); const t=S.types.find(x=>x.id===flatCb.dataset.flat);
-    if(t){ t.flat=flatCb.checked; if(flatCb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); scheduleRender(); } return; }
+    if(t){saveHist();t.flat=flatCb.checked; if(flatCb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); scheduleRender(); } return; }
 });
 document.getElementById('btl').addEventListener('input',e=>{
-  // Color picker
+  // Color picker (debounce undo: only snapshot on first change per drag)
   const clrInp=e.target.closest('[data-clr]');
   if(clrInp){ e.stopPropagation(); const t=S.types.find(x=>x.id===clrInp.dataset.clr);
-    if(t){ t.color=clrInp.value; clrInp.closest('.bti-sw').style.background=clrInp.value;
+    if(t){ if(!clrInp._undone){saveHist();clrInp._undone=true;setTimeout(()=>{clrInp._undone=false;},500);}
+      t.color=clrInp.value; clrInp.closest('.bti-sw').style.background=clrInp.value;
       S.boxes.forEach(b=>{if(b.sku===t.sku&&b.name===t.name) b.color=clrInp.value;}); scheduleRender(); } }
 });
 
