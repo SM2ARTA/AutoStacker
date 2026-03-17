@@ -565,7 +565,7 @@ self.onmessage=function(e){
     self.postMessage({ver:d.ver,...r});
   }catch(err){self.postMessage({ver:d.ver,error:err.message});}
 };`;
-let _abWorker=null, _abVer=0, _abBusy=false;
+let _abWorker=null, _abVer=0, _abBusy=false, _abLabel='', _abStartT=0, _abTimer=0;
 function _abGetWorker(){
   if(!_abWorker) _abWorker=new Worker(URL.createObjectURL(new Blob([_WORKER_SRC],{type:'application/javascript'})));
   return _abWorker;
@@ -579,17 +579,22 @@ function _abReadSettings(){
     interlock:document.getElementById('abInterlock').checked,
   };
 }
-function _abApplyResult(r,label){
-  if(r.ver!==_abVer){_abBusy=false;return;} // stale result
-  _abBusy=false;
-  if(r.error){toast(r.error);return;}
+let _abTickId=0;
+function _abTick(){ if(_abBusy){scheduleRender();_abTickId=requestAnimationFrame(_abTick);}else{_abTickId=0;} }
+function _abStart(label){ _abBusy=true; _abLabel=label; _abStartT=performance.now(); clearTimeout(_abTimer); _abTimer=setTimeout(()=>{if(_abBusy){_abDone();toast('Packing timed out');}},10000); if(!_abTickId)_abTickId=requestAnimationFrame(_abTick); }
+function _abBlock(){ if(_abBusy){toast(_abLabel+' in progress…');return true;} return false; }
+function _abDone(){ _abBusy=false; _abLabel=''; clearTimeout(_abTimer); scheduleRender(); }
+function _abApplyResult(r){
+  if(r.ver!==_abVer){_abDone();return;} // stale result
+  _abDone();
+  if(r.error){toast('⚠ '+r.error);return;}
   S.boxes=r.boxes.map(b=>({id:S.nxtId++,...b}));
   _isoDirty(); scheduleRender();
   return r;
 }
 
 function autoBuild(){
-  if(_abBusy) return;
+  if(_abBlock()) return;
   const settings=_abReadSettings();
   const items=[];
   S.types.forEach(t=>{
@@ -599,11 +604,11 @@ function autoBuild(){
   });
   if(!items.length){toast('Set qty on box types first');return;}
   saveHist();
-  S.boxes=[]; _isoDirty(); scheduleRender(); // show empty pallet immediately
-  _abBusy=true; const ver=++_abVer;
+  S.boxes=[]; _isoDirty(); scheduleRender();
+  _abStart('Auto Build'); const ver=++_abVer;
   const w=_abGetWorker();
   w.onmessage=e=>{
-    const r=_abApplyResult(e.data,'autoBuild');
+    const r=_abApplyResult(e.data);
     if(!r) return;
     if(r.warns&&r.warns.length) toast(`Placed ${r.total} (${r.peakH}" tall) — ${r.warns.join(', ')}`);
     else toast(`${r.total} boxes, ${r.peakH}" tall, ${Math.round(r.totalWt)}lb`);
@@ -612,16 +617,16 @@ function autoBuild(){
 }
 
 function autoFillType(typeId){
-  if(_abBusy) return;
+  if(_abBlock()) return;
   const t=S.types.find(x=>x.id===typeId);
   if(!t){toast('Type not found');return;}
   const settings=_abReadSettings();
   saveHist();
   S.boxes=[]; _isoDirty(); scheduleRender();
-  _abBusy=true; const ver=++_abVer;
+  _abStart('Auto Fill: '+(t.sku||t.name)); const ver=++_abVer;
   const w=_abGetWorker();
   w.onmessage=e=>{
-    const r=_abApplyResult(e.data,'autoFill');
+    const r=_abApplyResult(e.data);
     if(!r) return;
     const qe=document.getElementById('abq-'+t.id);
     if(qe) qe.value=r.total;
@@ -822,10 +827,16 @@ function renderIso(){
 
   // Busy indicator
   if(_abBusy){
-    ctx.save(); ctx.globalAlpha=0.7;
-    ctx.font='600 '+Math.max(12,14*S.zoom)+'px Barlow Condensed,sans-serif';
-    ctx.fillStyle='var(--acc,#F5A623)'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('Packing…',LW/2,LH/2);
+    const _elapsed=((performance.now()-_abStartT)/1000).toFixed(1);
+    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.globalAlpha=0.55;
+    ctx.font='600 '+Math.max(13,15*S.zoom)+'px Barlow Condensed,sans-serif';
+    ctx.fillStyle='#F5A623';
+    ctx.fillText(_abLabel||'Packing…',LW/2,LH/2-8*S.zoom);
+    ctx.globalAlpha=0.35;
+    ctx.font=Math.max(9,10*S.zoom)+'px JetBrains Mono,monospace';
+    ctx.fillStyle='#ddd8ce';
+    ctx.fillText(_elapsed+'s',LW/2,LH/2+10*S.zoom);
     ctx.restore();
   }
 
@@ -2207,7 +2218,7 @@ function _makeModal(html){
 
 // ── SAVE MODAL ──
 async function showSaveModal(){
-  if(_abBusy){toast('Packing in progress…');return;}
+  if(_abBlock()) return;
   const idx=await _psbLoadIndex();
   const box=_makeModal(`
     <div class="modal-title">Save Pallet</div>
@@ -2247,7 +2258,7 @@ async function showSaveModal(){
 
 // ── LOAD MODAL ──
 async function showLoadModal(){
-  if(_abBusy){toast('Packing in progress…');return;}
+  if(_abBlock()) return;
   const idx=await _psbLoadIndex();
   if(!idx.length){toast('No saved pallets');return;}
   const box=_makeModal(`
