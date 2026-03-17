@@ -1081,6 +1081,7 @@ document.getElementById('btl').addEventListener('click',e=>{
         });
         _isoDirty(); scheduleRender();
       }
+      if(inp.parentNode) inp.remove(); // remove edit input so fast-path updates dims
       renderBTL(); updStats();
     };
     inp.addEventListener('blur',commit);
