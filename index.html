@@ -145,7 +145,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
     <button class="btn btn-ghost btn-sm" id="dupLayerBtn" title="Copy top layer and stack it on top [L]">⧉ Dup Layer</button>
     <button class="btn btn-ghost btn-sm" id="rmLayerBtn" title="Remove top layer [R]" style="color:var(--red)">⊖ Rm Layer</button>
     <button class="btn btn-danger btn-sm" id="clearBtn">✕ Clear</button>
-    <button class="btn btn-acc btn-sm" id="exportBtn">↓ SVG</button>
+    <button class="btn btn-acc btn-sm" id="exportBtn">◫ SVG</button>
     <div style="width:1px;height:18px;background:var(--bdr)"></div>
     <button class="btn btn-ghost btn-sm" id="saveBtn">💾 Save</button>
     <button class="btn btn-ghost btn-sm" id="loadBtn">📂 Open</button>
@@ -1648,12 +1648,31 @@ ${els.join('\n')}
 ${iEls.join('\n')}
 </svg>`;
 
+  return svg;
+}
+
+function previewSVG(){
+  const svg=exportSVG(); if(!svg) return;
   const blob=new Blob([svg],{type:'image/svg+xml'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`pallet-${Date.now()}.svg`;
-  a.click();
-  toast('SVG exported!');
+  const url=URL.createObjectURL(blob);
+  _closeModal();
+  const bg=document.createElement('div'); bg.className='modal-bg';
+  bg.style.cssText='cursor:pointer';
+  const wrap=document.createElement('div');
+  wrap.style.cssText='background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:16px;max-width:92vw;max-height:90vh;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.15)';
+  wrap.addEventListener('click',e=>e.stopPropagation());
+  const bar=document.createElement('div');
+  bar.style.cssText='display:flex;align-items:center;justify-content:space-between';
+  bar.innerHTML=`<span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:0.85rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt)">SVG Preview</span><div style="display:flex;gap:6px"><button class="btn btn-acc btn-sm" id="svgDlBtn">↓ Download</button><button class="btn btn-ghost btn-sm" id="svgCloseBtn">✕ Close</button></div>`;
+  const img=document.createElement('img');
+  img.src=url; img.style.cssText='max-width:88vw;max-height:calc(90vh - 60px);object-fit:contain;border-radius:6px;background:#F0F1F3';
+  wrap.appendChild(bar); wrap.appendChild(img);
+  bg.appendChild(wrap); document.body.appendChild(bg);
+  bg.addEventListener('click',()=>{URL.revokeObjectURL(url);bg.remove();});
+  bar.querySelector('#svgCloseBtn').addEventListener('click',()=>{URL.revokeObjectURL(url);bg.remove();});
+  bar.querySelector('#svgDlBtn').addEventListener('click',()=>{
+    const a=document.createElement('a'); a.href=url; a.download=`pallet-${Date.now()}.svg`; a.click(); toast('SVG exported!');
+  });
 }
 
 // ─────────────────────────────────────────────────────
@@ -1883,7 +1902,7 @@ document.getElementById('rmLayerBtn').addEventListener('click',()=>{
   toast(`Removed ${topLayer.length} boxes from top layer`);
 });
 document.getElementById('clearBtn').addEventListener('click',()=>{ if(!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; render(); toast('Cleared'); });
-document.getElementById('exportBtn').addEventListener('click',exportSVG);
+document.getElementById('exportBtn').addEventListener('click',previewSVG);
 
 // Explode play/pause animation
 let _expAnim=null;
