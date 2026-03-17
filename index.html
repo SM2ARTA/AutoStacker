@@ -480,146 +480,149 @@ function _abLayouts(bw,bd,overhang){
   return layouts[0];
 }
 
+// ── AUTO BUILD / AUTO FILL — Web Worker for non-blocking packing ──
+const _WORKER_SRC=`
+const PERMS=[[0,1,2],[1,0,2],[0,2,1],[2,0,1],[1,2,0],[2,1,0]];
+function abLayouts(bw,bd,overhang,PW,PD){
+  const ohW=overhang?Math.floor(bw*0.49):0,ohD=overhang?Math.floor(bd*0.49):0;
+  const pw=PW+ohW,pd=PD+ohD,layouts=[];
+  function tryRowsD(wa,da,wb,db){const nxa=Math.floor(pw/wa),nya=Math.floor(pd/da);if(nxa<=0)return;const cells=[];
+    for(let iy=0;iy<nya;iy++)for(let ix=0;ix<nxa;ix++)cells.push({gx:ix*wa,gy:iy*da,w:wa,d:da});
+    const remD=pd-nya*da,nxb=Math.floor(pw/wb),nyb=remD>=db?Math.floor(remD/db):0;
+    for(let iy=0;iy<nyb;iy++)for(let ix=0;ix<nxb;ix++)cells.push({gx:ix*wb,gy:nya*da+iy*db,w:wb,d:db});
+    if(cells.length)layouts.push(cells);}
+  function tryColsW(wa,da,wb,db){const nxa=Math.floor(pw/wa),nya=Math.floor(pd/da);if(nya<=0)return;const cells=[];
+    for(let iy=0;iy<nya;iy++)for(let ix=0;ix<nxa;ix++)cells.push({gx:ix*wa,gy:iy*da,w:wa,d:da});
+    const remW=pw-nxa*wa,nxb=remW>=wb?Math.floor(remW/wb):0,nyb=Math.floor(pd/db);
+    for(let iy=0;iy<nyb;iy++)for(let ix=0;ix<nxb;ix++)cells.push({gx:nxa*wa+ix*wb,gy:iy*db,w:wb,d:db});
+    if(cells.length)layouts.push(cells);}
+  const O=[[bw,bd],[bd,bw]];
+  for(const[wa,da]of O)for(const[wb,db]of O){tryRowsD(wa,da,wb,db);tryColsW(wa,da,wb,db);}
+  if(!layouts.length)return null;
+  layouts.sort((a,b)=>b.length-a.length);
+  return layouts[0];
+}
+function doBuild(d){
+  const{PW,PD,maxH,maxWt,overhang,interlock,items}=d;
+  const ohW=overhang?Math.floor(PW*0.25):0,ohD=overhang?Math.floor(PD*0.25):0;
+  const effW=PW+ohW,effD=PD+ohD;
+  const typeGroups=[],warns=[];
+  for(const item of items){
+    const dims=[item.w,item.d,item.h],maxOri=item.flat?2:6,seen=new Set();let best=null;
+    for(let oi=0;oi<maxOri;oi++){const p=PERMS[oi];const fw=dims[p[0]],fd=dims[p[1]],fh=dims[p[2]];
+      const k=fw+','+fd+','+fh;if(seen.has(k))continue;seen.add(k);if(fh>maxH)continue;
+      const canFit=(fw<=effW&&fd<=effD)||(fd<=effW&&fw<=effD);if(!canFit)continue;
+      let uw=fw,ud=fd;if(uw>effW){uw=fd;ud=fw;}const a=uw*ud;
+      if(!best||a>best.area)best={fw:uw,fd:ud,fh,area:a};}
+    if(!best){warns.push(item.label+': too large');continue;}
+    typeGroups.push({item,qty:item.qty,fw:best.fw,fd:best.fd,fh:best.fh,area:best.area});
+  }
+  typeGroups.sort((a,b)=>(b.area-a.area)||((b.item.weight||0)-(a.item.weight||0)));
+  const hmap=Array.from({length:effD},()=>new Float32Array(effW));
+  function findLowest(bw,bd,bh,swap){let bGx=-1,bGy=-1,bZ=Infinity,bW=bw,bD=bd;
+    const rots=(swap&&bw!==bd)?[[bd,bw],[bw,bd]]:[[bw,bd],[bd,bw]];
+    for(const[w,d]of rots){if(w>effW||d>effD)continue;
+      for(let gy=0;gy<=effD-d;gy++)for(let gx=0;gx<=effW-w;gx++){let mz=0;
+        for(let dy=0;dy<d;dy++)for(let dx=0;dx<w;dx++)mz=Math.max(mz,hmap[gy+dy][gx+dx]);
+        if(mz+bh<=maxH&&mz<bZ){bZ=mz;bGx=gx;bGy=gy;bW=w;bD=d;if(bZ===0)return{gx:bGx,gy:bGy,gz:0,w:bW,d:bD};}}}
+    return bGx>=0?{gx:bGx,gy:bGy,gz:bZ,w:bW,d:bD}:null;}
+  const boxes=[];let total=0,totalWt=0;const gzSeen=new Set();let swap=false;
+  for(const grp of typeGroups){let placed=0;
+    while(placed<grp.qty){if(totalWt+(grp.item.weight||0)>maxWt)break;
+      const pos=findLowest(grp.fw,grp.fd,grp.fh,swap);if(!pos)break;
+      if(interlock&&!gzSeen.has(pos.gz)){gzSeen.add(pos.gz);if(gzSeen.size>1)swap=!swap;}
+      boxes.push({gx:pos.gx,gy:pos.gy,gz:pos.gz,w:pos.w,d:pos.d,h:grp.fh,
+        color:grp.item.color,sku:grp.item.sku,name:grp.item.name});
+      for(let dy=0;dy<pos.d;dy++)for(let dx=0;dx<pos.w;dx++)hmap[pos.gy+dy][pos.gx+dx]=pos.gz+grp.fh;
+      placed++;total++;totalWt+=(grp.item.weight||0);}
+    if(placed<grp.qty)warns.push(grp.item.label+': '+placed+'/'+grp.qty);}
+  const peakH=boxes.length?boxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0):0;
+  return{boxes,warns,total,totalWt,peakH};
+}
+function doFill(d){
+  const{PW,PD,maxH,maxWt,overhang,interlock,type}=d;
+  const dims=[type.w,type.d,type.h],maxOri=type.flat?2:6,seen=new Set();let bestOri=null;
+  for(let oi=0;oi<maxOri;oi++){const p=PERMS[oi];const fw=dims[p[0]],fd=dims[p[1]],fh=dims[p[2]];
+    const k=fw+','+fd+','+fh;if(seen.has(k))continue;seen.add(k);if(fh>maxH)continue;
+    const layout=abLayouts(fw,fd,overhang,PW,PD);if(!layout)continue;
+    if(!bestOri||layout.length>bestOri.layout.length||(layout.length===bestOri.layout.length&&fh<bestOri.fh))bestOri={fw,fd,fh,layout};}
+  if(!bestOri)return{error:type.label+': too large for pallet'};
+  const alt=(interlock&&bestOri.fw!==bestOri.fd)?abLayouts(bestOri.fd,bestOri.fw,overhang,PW,PD):null;
+  const boxes=[];let z=0,total=0,totalWt=0,layerNum=0;
+  while(z+bestOri.fh<=maxH){const lw=(type.weight||0)*bestOri.layout.length;if(totalWt+lw>maxWt)break;
+    const use=(alt&&layerNum%2===1)?alt:bestOri.layout;
+    for(const c of use){boxes.push({gx:c.gx,gy:c.gy,gz:z,w:c.w,d:c.d,h:bestOri.fh,color:type.color,sku:type.sku,name:type.name});total++;}
+    totalWt+=(type.weight||0)*use.length;z+=bestOri.fh;layerNum++;}
+  return{boxes,total,totalWt,layerNum,peakH:z};
+}
+self.onmessage=function(e){
+  const d=e.data;
+  try{
+    const r=d.cmd==='build'?doBuild(d):doFill(d);
+    self.postMessage({ver:d.ver,...r});
+  }catch(err){self.postMessage({ver:d.ver,error:err.message});}
+};`;
+let _abWorker=null, _abVer=0, _abBusy=false;
+function _abGetWorker(){
+  if(!_abWorker) _abWorker=new Worker(URL.createObjectURL(new Blob([_WORKER_SRC],{type:'application/javascript'})));
+  return _abWorker;
+}
+function _abReadSettings(){
+  return {
+    PW:S.palletW, PD:S.palletD,
+    maxH:parseInt(document.getElementById('abMaxH').value)||86,
+    maxWt:parseFloat(document.getElementById('abMaxWt').value)||99999,
+    overhang:document.getElementById('abOverhang').checked,
+    interlock:document.getElementById('abInterlock').checked,
+  };
+}
+function _abApplyResult(r,label){
+  if(r.ver!==_abVer){_abBusy=false;return;} // stale result
+  _abBusy=false;
+  if(r.error){toast(r.error);return;}
+  S.boxes=r.boxes.map(b=>({id:S.nxtId++,...b}));
+  _isoDirty(); scheduleRender();
+  return r;
+}
+
 function autoBuild(){
-  const maxH=parseInt(document.getElementById('abMaxH').value)||86;
-  const overhang=document.getElementById('abOverhang').checked;
-  const interlock=document.getElementById('abInterlock').checked;
-  const maxWt=parseFloat(document.getElementById('abMaxWt').value)||99999;
+  const settings=_abReadSettings();
   const items=[];
   S.types.forEach(t=>{
     const e=document.getElementById('abq-'+t.id);
     const qty=e?parseInt(e.value)||0:0;
-    if(qty>0) items.push({t,qty});
+    if(qty>0) items.push({qty,w:t.w,d:t.d,h:t.h,flat:!!t.flat,weight:t.weight||0,color:t.color,sku:t.sku||'',name:t.name,label:t.sku||t.name});
   });
-  if(!items.length){ toast('Set qty on box types first'); return; }
-
-  const PW=S.palletW,PD=S.palletD;
-  const ohW=overhang?Math.floor(PW*0.25):0, ohD=overhang?Math.floor(PD*0.25):0;
-  const effW=PW+ohW, effD=PD+ohD;
-
-  // For each type, find best orientation
-  const typeGroups=[];
-  const warns=[];
-  for(const item of items){
-    const t=item.t, dims=[t.w,t.d,t.h];
-    const maxOrient=t.flat?2:6, seen=new Set();
-    let bestOri=null;
-    for(let oi=0;oi<maxOrient;oi++){
-      const p=_PERMS[oi];
-      const fw=dims[p[0]],fd=dims[p[1]],fh=dims[p[2]];
-      const key=fw+','+fd+','+fh;
-      if(seen.has(key))continue;seen.add(key);
-      if(fh>maxH)continue;
-      if(fw>effW&&fd>effW)continue;if(fd>effD&&fw>effD)continue;
-      // Pick orientation: fits pallet, prefer largest footprint area
-      const canFit=(fw<=effW&&fd<=effD)||(fd<=effW&&fw<=effD);
-      if(!canFit)continue;
-      // Ensure fw<=effW, fd<=effD (swap if needed)
-      let uw=fw,ud=fd;
-      if(uw>effW){uw=fd;ud=fw;}
-      const area=uw*ud;
-      if(!bestOri||area>bestOri.area) bestOri={fw:uw,fd:ud,fh,area};
-    }
-    if(!bestOri){warns.push(`${t.sku||t.name}: too large`);continue;}
-    typeGroups.push({t,qty:item.qty,fw:bestOri.fw,fd:bestOri.fd,fh:bestOri.fh,area:bestOri.area});
-  }
-
-  // ── HUMAN-STYLE PACKER ──
-  // Sort: biggest footprint on bottom, then heaviest
-  typeGroups.sort((a,b)=>(b.area-a.area)||((b.t.weight||0)-(a.t.weight||0)));
-
-  // Use a heightmap to place each box at the lowest available spot
-  const hmap=Array.from({length:effD},()=>new Float32Array(effW));
-
-  function findLowest(bw,bd,bh,swap){
-    let bestGx=-1,bestGy=-1,bestZ=Infinity,bestW=bw,bestD=bd;
-    const rots=(swap&&bw!==bd)?[[bd,bw],[bw,bd]]:[[bw,bd],[bd,bw]];
-    for(const[w,d]of rots){
-      if(w>effW||d>effD)continue;
-      for(let gy=0;gy<=effD-d;gy++) for(let gx=0;gx<=effW-w;gx++){
-        let mz=0;
-        for(let dy=0;dy<d;dy++) for(let dx=0;dx<w;dx++) mz=Math.max(mz,hmap[gy+dy][gx+dx]);
-        if(mz+bh<=maxH&&mz<bestZ){bestZ=mz;bestGx=gx;bestGy=gy;bestW=w;bestD=d;
-          if(bestZ===0)return{gx:bestGx,gy:bestGy,gz:0,w:bestW,d:bestD};}
-      }
-    }
-    return bestGx>=0?{gx:bestGx,gy:bestGy,gz:bestZ,w:bestW,d:bestD}:null;
-  }
-
+  if(!items.length){toast('Set qty on box types first');return;}
   saveHist();
-  S.boxes=[];
-  let total=0,totalWt=0;
-  // Track layers for interlocking
-  const gzSeen=new Set();let swap=false;
-
-  // Place type by type (biggest first), all qty of one type before next
-  for(const grp of typeGroups){
-    let placed=0;
-    while(placed<grp.qty){
-      if(totalWt+(grp.t.weight||0)>maxWt) break;
-      const pos=findLowest(grp.fw,grp.fd,grp.fh,swap);
-      if(!pos) break;
-      // Interlock: toggle swap at new height levels
-      if(interlock&&!gzSeen.has(pos.gz)){gzSeen.add(pos.gz);if(gzSeen.size>1)swap=!swap;}
-      S.boxes.push({id:S.nxtId++,gx:pos.gx,gy:pos.gy,gz:pos.gz,
-        w:pos.w,d:pos.d,h:grp.fh,color:grp.t.color,sku:grp.t.sku||'',name:grp.t.name});
-      for(let dy=0;dy<pos.d;dy++) for(let dx=0;dx<pos.w;dx++)
-        hmap[pos.gy+dy][pos.gx+dx]=pos.gz+grp.fh;
-      placed++;total++;totalWt+=(grp.t.weight||0);
-    }
-    if(placed<grp.qty) warns.push(`${grp.t.sku||grp.t.name}: ${placed}/${grp.qty}`);
-  }
-
-  const peakH=S.boxes.length?S.boxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0):0;
-  _isoDirty(); scheduleRender();
-  if(warns.length) toast(`Placed ${total} (${peakH}" tall) — ${warns.join(', ')}`);
-  else toast(`${total} boxes, ${peakH}" tall, ${Math.round(totalWt)}lb`);
+  S.boxes=[]; _isoDirty(); scheduleRender(); // show empty pallet immediately
+  _abBusy=true; const ver=++_abVer;
+  const w=_abGetWorker();
+  w.onmessage=e=>{
+    const r=_abApplyResult(e.data,'autoBuild');
+    if(!r) return;
+    if(r.warns&&r.warns.length) toast(`Placed ${r.total} (${r.peakH}" tall) — ${r.warns.join(', ')}`);
+    else toast(`${r.total} boxes, ${r.peakH}" tall, ${Math.round(r.totalWt)}lb`);
+  };
+  w.postMessage({cmd:'build',ver,...settings,items});
 }
 
-// ── AUTO FILL SINGLE TYPE — fill pallet with one type to max capacity ──
 function autoFillType(typeId){
   const t=S.types.find(x=>x.id===typeId);
   if(!t){toast('Type not found');return;}
-  const maxH=parseInt(document.getElementById('abMaxH').value)||86;
-  const maxWt=parseFloat(document.getElementById('abMaxWt').value)||99999;
-  const overhang=document.getElementById('abOverhang').checked;
-  const interlock=document.getElementById('abInterlock').checked;
-  const dims=[t.w,t.d,t.h], maxOrient=t.flat?2:6, seen=new Set();
-  let bestOri=null;
-  for(let oi=0;oi<maxOrient;oi++){
-    const p=_PERMS[oi];
-    const fw=dims[p[0]],fd=dims[p[1]],fh=dims[p[2]];
-    const key=fw+','+fd+','+fh;
-    if(seen.has(key))continue;seen.add(key);
-    if(fh>maxH)continue;
-    const layout=_abLayouts(fw,fd,overhang);
-    if(!layout)continue;
-    if(!bestOri||layout.length>bestOri.layout.length||(layout.length===bestOri.layout.length&&fh<bestOri.fh))
-      bestOri={fw,fd,fh,layout};
-  }
-  if(!bestOri){toast(`${t.sku||t.name}: too large for pallet`);return;}
-  const altLayout=(interlock&&bestOri.fw!==bestOri.fd)?_abLayouts(bestOri.fd,bestOri.fw,overhang):null;
-  // Fill layers until max height/weight
+  const settings=_abReadSettings();
   saveHist();
-  S.boxes=[];
-  let z=0,total=0,totalWt=0,layerNum=0;
-  while(z+bestOri.fh<=maxH){
-    const layerWt=(t.weight||0)*bestOri.layout.length;
-    if(totalWt+layerWt>maxWt) break;
-    const useLayout=(altLayout&&layerNum%2===1)?altLayout:bestOri.layout;
-    for(const c of useLayout){
-      S.boxes.push({id:S.nxtId++,gx:c.gx,gy:c.gy,gz:z,
-        w:c.w,d:c.d,h:bestOri.fh,color:t.color,sku:t.sku||'',name:t.name});
-      total++;
-    }
-    totalWt+=(t.weight||0)*useLayout.length;
-    z+=bestOri.fh; layerNum++;
-  }
-  // Update qty field
-  const qe=document.getElementById('abq-'+t.id);
-  if(qe) qe.value=total;
-  _isoDirty(); scheduleRender();
-  toast(`Auto-filled: ${total}× ${t.sku||t.name}, ${layerNum} layers, ${z}" tall`);
+  S.boxes=[]; _isoDirty(); scheduleRender();
+  _abBusy=true; const ver=++_abVer;
+  const w=_abGetWorker();
+  w.onmessage=e=>{
+    const r=_abApplyResult(e.data,'autoFill');
+    if(!r) return;
+    const qe=document.getElementById('abq-'+t.id);
+    if(qe) qe.value=r.total;
+    toast(`Auto-filled: ${r.total}× ${t.sku||t.name}, ${r.layerNum} layers, ${r.peakH}" tall`);
+  };
+  w.postMessage({cmd:'fill',ver,...settings,type:{w:t.w,d:t.d,h:t.h,flat:!!t.flat,weight:t.weight||0,color:t.color,sku:t.sku||'',name:t.name,label:t.sku||t.name}});
 }
 
 function dropAt(gx,gy){
