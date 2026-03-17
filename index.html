@@ -59,7 +59,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Barlow',sans-serif;displ
 .inp-lbl{font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;flex-shrink:0;white-space:nowrap}
 .inp-x{color:var(--muted);font-size:0.8rem;flex-shrink:0}
 
-.btl{flex:1;overflow-y:auto;padding:6px 10px}
+.btl{flex:1;overflow-y:auto;padding:6px 10px;scrollbar-width:thin;scrollbar-color:var(--bdr) transparent}
 .btl::-webkit-scrollbar{width:3px}.btl::-webkit-scrollbar-track{background:transparent}.btl::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
 .bti{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;border:1px solid var(--bdr);background:var(--surf);cursor:pointer;margin-bottom:6px;transition:all .14s;position:relative;user-select:none}
 .bti:hover{border-color:var(--bdr2);background:var(--surf2)}
@@ -127,6 +127,25 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
 .modal-btn{border:none;border-radius:4px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:0.75rem;letter-spacing:1.2px;text-transform:uppercase;padding:8px 18px;transition:all .14s}
 .modal-btn-primary{background:var(--acc);color:#fff}.modal-btn-primary:hover{opacity:.85}
 .modal-btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--bdr)}.modal-btn-ghost:hover{color:var(--txt)}
+
+/* ── Responsive ── */
+@media(max-width:1100px){.rp{display:none}}
+@media(max-width:900px){
+  .lp{width:280px}
+  .hdr-actions{flex-wrap:wrap;gap:4px}
+  .tb kbd,.tb kbd+span{display:none}
+  .cv-hint{display:none}
+}
+@media(max-width:640px){
+  .main{flex-direction:column}
+  .lp{width:100%;max-height:40vh;border-right:none;border-bottom:1px solid var(--bdr)}
+  .btl{max-height:25vh}
+  .hdr{padding:6px 10px}
+  .hdr-actions{gap:3px}
+  .btn-sm{padding:4px 7px;font-size:0.65rem}
+  .tb{padding:4px 8px;gap:5px}
+  .stat{padding:2px 6px;font-size:0.6rem}
+}
 </style>
 </head>
 <body>
@@ -469,40 +488,43 @@ function abLayouts(bw,bd,overhang,PW,PD){
 }
 function doBuild(d){
   const{PW,PD,maxH,maxWt,overhang,interlock,items}=d;
-  const ohW=overhang?Math.floor(PW*0.25):0,ohD=overhang?Math.floor(PD*0.25):0;
-  const effW=PW+ohW,effD=PD+ohD;
+  // For each type, find best orientation AND best layer layout
   const typeGroups=[],warns=[];
   for(const item of items){
-    const dims=[item.w,item.d,item.h],maxOri=item.flat?2:6,seen=new Set();let best=null;
+    const dims=[item.w,item.d,item.h],maxOri=item.flat?2:6,seen=new Set();
+    let best=null;
     for(let oi=0;oi<maxOri;oi++){const p=PERMS[oi];const fw=dims[p[0]],fd=dims[p[1]],fh=dims[p[2]];
       const k=fw+','+fd+','+fh;if(seen.has(k))continue;seen.add(k);if(fh>maxH)continue;
-      const canFit=(fw<=effW&&fd<=effD)||(fd<=effW&&fw<=effD);if(!canFit)continue;
-      let uw=fw,ud=fd;if(uw>effW){uw=fd;ud=fw;}const a=uw*ud;
-      if(!best||a>best.area)best={fw:uw,fd:ud,fh,area:a};}
+      const layout=abLayouts(fw,fd,overhang,PW,PD);if(!layout)continue;
+      if(!best||layout.length>best.layout.length||(layout.length===best.layout.length&&fh<best.fh))
+        best={fw,fd,fh,layout};}
     if(!best){warns.push(item.label+': too large');continue;}
-    typeGroups.push({item,qty:item.qty,fw:best.fw,fd:best.fd,fh:best.fh,area:best.area});
+    const alt=(interlock&&best.fw!==best.fd)?abLayouts(best.fd,best.fw,overhang,PW,PD):null;
+    typeGroups.push({item,qty:item.qty,fw:best.fw,fd:best.fd,fh:best.fh,
+      perLayer:best.layout.length,layout:best.layout,altLayout:alt});
   }
-  typeGroups.sort((a,b)=>(b.area-a.area)||((b.item.weight||0)-(a.item.weight||0)));
-  const hmap=Array.from({length:effD},()=>new Float32Array(effW));
-  function findLowest(bw,bd,bh,swap){let bGx=-1,bGy=-1,bZ=Infinity,bW=bw,bD=bd;
-    const rots=(swap&&bw!==bd)?[[bd,bw],[bw,bd]]:[[bw,bd],[bd,bw]];
-    for(const[w,d]of rots){if(w>effW||d>effD)continue;
-      for(let gy=0;gy<=effD-d;gy++)for(let gx=0;gx<=effW-w;gx++){let mz=0;
-        for(let dy=0;dy<d;dy++)for(let dx=0;dx<w;dx++)mz=Math.max(mz,hmap[gy+dy][gx+dx]);
-        if(mz+bh<=maxH&&mz<bZ){bZ=mz;bGx=gx;bGy=gy;bW=w;bD=d;if(bZ===0)return{gx:bGx,gy:bGy,gz:0,w:bW,d:bD};}}}
-    return bGx>=0?{gx:bGx,gy:bGy,gz:bZ,w:bW,d:bD}:null;}
-  const boxes=[];let total=0,totalWt=0;const gzSeen=new Set();let swap=false;
-  for(const grp of typeGroups){let placed=0;
-    while(placed<grp.qty){if(totalWt+(grp.item.weight||0)>maxWt)break;
-      const pos=findLowest(grp.fw,grp.fd,grp.fh,swap);if(!pos)break;
-      if(interlock&&!gzSeen.has(pos.gz)){gzSeen.add(pos.gz);if(gzSeen.size>1)swap=!swap;}
-      boxes.push({gx:pos.gx,gy:pos.gy,gz:pos.gz,w:pos.w,d:pos.d,h:grp.fh,
-        color:grp.item.color,sku:grp.item.sku,name:grp.item.name});
-      for(let dy=0;dy<pos.d;dy++)for(let dx=0;dx<pos.w;dx++)hmap[pos.gy+dy][pos.gx+dx]=pos.gz+grp.fh;
-      placed++;total++;totalWt+=(grp.item.weight||0);}
-    if(placed<grp.qty)warns.push(grp.item.label+': '+placed+'/'+grp.qty);}
+  // Sort: most boxes per layer first (best utilization), then heaviest on bottom
+  typeGroups.sort((a,b)=>(b.perLayer-a.perLayer)||((b.item.weight||0)-(a.item.weight||0)));
+  // Layer-based packing: fill complete layers per type, stack types sequentially
+  const boxes=[];let z=0,total=0,totalWt=0,layerNum=0;
+  for(const grp of typeGroups){
+    let remaining=grp.qty,grpLayers=0;
+    while(remaining>0&&z+grp.fh<=maxH){
+      const use=(interlock&&grp.altLayout&&grpLayers%2===1)?grp.altLayout:grp.layout;
+      const layerQty=Math.min(remaining,use.length);
+      const layerWt=(grp.item.weight||0)*layerQty;
+      if(totalWt+layerWt>maxWt)break;
+      for(let i=0;i<layerQty;i++){const c=use[i];
+        boxes.push({gx:c.gx,gy:c.gy,gz:z,w:c.w,d:c.d,h:grp.fh,
+          color:grp.item.color,sku:grp.item.sku,name:grp.item.name});
+        total++;}
+      totalWt+=layerWt; remaining-=layerQty;
+      z+=grp.fh; grpLayers++; layerNum++;
+    }
+    if(remaining>0)warns.push(grp.item.label+': '+(grp.qty-remaining)+'/'+grp.qty);
+  }
   const peakH=boxes.length?boxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0):0;
-  return{boxes,warns,total,totalWt,peakH};
+  return{boxes,warns,total,totalWt,peakH,layers:layerNum};
 }
 function doFill(d){
   const{PW,PD,maxH,maxWt,overhang,interlock,type}=d;
@@ -572,8 +594,8 @@ function autoBuild(){
   w.onmessage=e=>{
     const r=_abApplyResult(e.data);
     if(!r) return;
-    if(r.warns&&r.warns.length) toast(`Placed ${r.total} (${r.peakH}" tall) — ${r.warns.join(', ')}`);
-    else toast(`${r.total} boxes, ${r.peakH}" tall, ${Math.round(r.totalWt)}lb`);
+    if(r.warns&&r.warns.length) toast(`${r.total} boxes, ${r.layers||'?'} layers, ${r.peakH}" — ${r.warns.join(', ')}`);
+    else toast(`${r.total} boxes, ${r.layers||'?'} layers, ${r.peakH}" tall, ${Math.round(r.totalWt)}lb`);
   };
   w.postMessage({cmd:'build',ver,...settings,items});
 }
@@ -1867,19 +1889,27 @@ function gridPos(e){
 
 // ── Unified Pointer Events for canvas (mouse + touch + pen) ──
 let _lastMx=-1,_lastMy=-1;
-let _ptrDrag=false, _ptrStart=null, _ptrId=null; // track active pointer for pan/tap
-const _TAP_THRESHOLD=8; // px movement to distinguish tap from drag
+let _ptrDrag=false, _ptrStart=null, _ptrId=null; // track primary pointer for pan/tap
+let _ptr2Id=null, _ptr2={x:0,y:0}, _pinchDist=0; // second pointer for pinch-zoom
+const _TAP_THRESHOLD=8;
 
 function _reHover(){ if(_lastMx>=0&&S.hGx!==null){ const[gx,gy]=gridPos({clientX:_lastMx,clientY:_lastMy}); S.hGx=gx; S.hGy=gy; } }
+function _pinchD(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
 
 isoC.addEventListener('pointerdown',e=>{
-  if(_ptrId!==null&&e.pointerId!==_ptrId) return; // ignore second finger
+  // Second finger → start pinch
+  if(_ptrId!==null&&e.pointerId!==_ptrId&&e.pointerType!=='mouse'){
+    _ptr2Id=e.pointerId; _ptr2={x:e.clientX,y:e.clientY};
+    _pinchDist=_pinchD(_ptrStart||{x:0,y:0},_ptr2);
+    _ptrDrag=true; // pinch counts as drag (suppress tap)
+    try{isoC.setPointerCapture(e.pointerId);}catch(_){}
+    return;
+  }
+  if(_ptrId!==null) return;
   _ptrId=e.pointerId;
-  // Blur focused inputs so keyboard shortcuts work on canvas
   if(document.activeElement&&document.activeElement.tagName==='INPUT') document.activeElement.blur();
   _ptrStart={x:e.clientX,y:e.clientY,t:Date.now()};
   _ptrDrag=false;
-  // Touch/pen: capture + start drag. Mouse: only middle-button starts drag.
   if(e.pointerType!=='mouse'){
     isoC.setPointerCapture(e.pointerId);
     S.dragLast={x:e.clientX,y:e.clientY};
@@ -1890,6 +1920,24 @@ isoC.addEventListener('pointerdown',e=>{
 });
 
 isoC.addEventListener('pointermove',e=>{
+  // Pinch-zoom: two active touch pointers
+  if(_ptr2Id!==null){
+    if(e.pointerId===_ptrId) _ptrStart={x:e.clientX,y:e.clientY};
+    else if(e.pointerId===_ptr2Id) _ptr2={x:e.clientX,y:e.clientY};
+    else return;
+    const nd=_pinchD(_ptrStart,_ptr2);
+    if(_pinchDist>10&&nd>10){
+      const ratio=nd/_pinchDist;
+      S.zoom=Math.max(0.15,Math.min(5,S.zoom*ratio));
+      // Pan to midpoint
+      const mx=(_ptrStart.x+_ptr2.x)/2, my=(_ptrStart.y+_ptr2.y)/2;
+      if(S.dragLast){S.panX+=mx-S.dragLast.x;S.panY+=my-S.dragLast.y;}
+      S.dragLast={x:mx,y:my};
+      scheduleRender();
+    }
+    _pinchDist=nd;
+    return;
+  }
   if(e.pointerId!==_ptrId&&_ptrId!==null&&e.pointerType!=='mouse') return;
   // Pan: touch drag or mouse middle-drag
   const isPanning=(e.pointerType!=='mouse'&&_ptrId!==null&&_ptrStart)||S.midDrag;
@@ -1913,8 +1961,11 @@ isoC.addEventListener('pointermove',e=>{
 });
 
 isoC.addEventListener('pointerup',e=>{
+  // Second finger released — end pinch, stay in drag mode
+  if(e.pointerId===_ptr2Id){try{isoC.releasePointerCapture(e.pointerId);}catch(_){}_ptr2Id=null;return;}
   if(e.pointerId!==_ptrId) return;
   try{isoC.releasePointerCapture(e.pointerId);}catch(_){}
+  if(_ptr2Id!==null){try{isoC.releasePointerCapture(_ptr2Id);}catch(_){}_ptr2Id=null;} // clean up second
   // Mouse middle-button pan end
   if(e.pointerType==='mouse'&&e.button===1){ S.midDrag=false; isoC.style.cursor=''; _ptrId=null; _ptrStart=null; return; }
   // Mouse left-click: handle only if not middle-drag
@@ -1943,8 +1994,9 @@ isoC.addEventListener('pointerup',e=>{
 });
 
 isoC.addEventListener('pointercancel',e=>{
+  if(e.pointerId===_ptr2Id){_ptr2Id=null;return;}
   if(e.pointerId!==_ptrId) return;
-  _ptrId=null; _ptrStart=null; _ptrDrag=false; S.midDrag=false; S.dragLast=null;
+  _ptrId=null; _ptrStart=null; _ptrDrag=false; _ptr2Id=null; S.midDrag=false; S.dragLast=null;
   isoC.style.cursor='';
 });
 
