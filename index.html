@@ -1883,16 +1883,18 @@ function _reHover(){ if(_lastMx>=0&&S.hGx!==null){ const[gx,gy]=gridPos({clientX
 
 isoC.addEventListener('pointerdown',e=>{
   if(_ptrId!==null&&e.pointerId!==_ptrId) return; // ignore second finger
-  _ptrId=e.pointerId; isoC.setPointerCapture(e.pointerId);
+  _ptrId=e.pointerId;
   // Blur focused inputs so keyboard shortcuts work on canvas
   if(document.activeElement&&document.activeElement.tagName==='INPUT') document.activeElement.blur();
   _ptrStart={x:e.clientX,y:e.clientY,t:Date.now()};
   _ptrDrag=false;
-  // Touch/pen: start drag immediately. Mouse: only middle-button starts drag.
+  // Touch/pen: capture + start drag. Mouse: only middle-button starts drag.
   if(e.pointerType!=='mouse'){
+    isoC.setPointerCapture(e.pointerId);
     S.dragLast={x:e.clientX,y:e.clientY};
   } else if(e.button===1){
-    e.preventDefault(); S.midDrag=true; S.dragLast={x:e.clientX,y:e.clientY}; isoC.style.cursor='grabbing';
+    e.preventDefault(); isoC.setPointerCapture(e.pointerId);
+    S.midDrag=true; S.dragLast={x:e.clientX,y:e.clientY}; isoC.style.cursor='grabbing';
   }
 });
 
@@ -1921,7 +1923,7 @@ isoC.addEventListener('pointermove',e=>{
 
 isoC.addEventListener('pointerup',e=>{
   if(e.pointerId!==_ptrId) return;
-  isoC.releasePointerCapture(e.pointerId);
+  try{isoC.releasePointerCapture(e.pointerId);}catch(_){}
   // Mouse middle-button pan end
   if(e.pointerType==='mouse'&&e.button===1){ S.midDrag=false; isoC.style.cursor=''; _ptrId=null; _ptrStart=null; return; }
   // Mouse left-click: handle only if not middle-drag
