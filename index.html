@@ -1812,12 +1812,21 @@ function gridPos(e){
   return snap(rx-bw/2,ry-bd/2);
 }
 
+let _lastMx=-1,_lastMy=-1;
 isoC.addEventListener('mousemove',e=>{
-  if(S.midDrag){ S.panX+=e.clientX-S.dragLast.x; S.panY+=e.clientY-S.dragLast.y; S.dragLast={x:e.clientX,y:e.clientY}; scheduleRender(); return; }
+  if(S.midDrag){
+    const dx=e.clientX-S.dragLast.x, dy=e.clientY-S.dragLast.y;
+    if(dx||dy){ S.panX+=dx; S.panY+=dy; S.dragLast={x:e.clientX,y:e.clientY}; scheduleRender(); }
+    return;
+  }
+  // Skip gridPos() if raw pixel hasn't moved enough to change snap result
+  const mx=e.clientX,my=e.clientY;
+  if(Math.abs(mx-_lastMx)<1&&Math.abs(my-_lastMy)<1) return;
+  _lastMx=mx; _lastMy=my;
   const [gx,gy]=gridPos(e);
   if(gx!==S.hGx||gy!==S.hGy){ S.hGx=gx; S.hGy=gy; scheduleRender(); }
 });
-isoC.addEventListener('mouseleave',()=>{ S.hGx=null; S.hGy=null; scheduleRender(); });
+isoC.addEventListener('mouseleave',()=>{ S.hGx=null; S.hGy=null; _lastMx=-1; _lastMy=-1; scheduleRender(); });
 isoC.addEventListener('mousedown',()=>{
   // Blur any focused input so keyboard shortcuts (F, M, etc.) work on canvas
   if(document.activeElement&&document.activeElement.tagName==='INPUT') document.activeElement.blur();
