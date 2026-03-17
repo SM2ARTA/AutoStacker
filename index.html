@@ -240,11 +240,11 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
       <div class="tb-sep"></div>
       <label style="display:flex;align-items:center;gap:4px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate layers vertically">
         <span>↕</span>
-        <input type="range" id="explodeSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explode=this.value/100;scheduleRender()">
+        <input type="range" id="explodeSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--acc);cursor:pointer" oninput="S.explode=this.value/100;scheduleRender()">
       </label>
       <label style="display:flex;align-items:center;gap:4px;font-size:0.6rem;color:var(--muted);cursor:pointer" title="Separate boxes horizontally">
         <span>↔</span>
-        <input type="range" id="explodeHSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--accent,#D4850A);cursor:pointer" oninput="S.explodeH=this.value/100;scheduleRender()">
+        <input type="range" id="explodeHSlider" min="0" max="100" value="0" style="width:56px;height:14px;accent-color:var(--acc);cursor:pointer" oninput="S.explodeH=this.value/100;scheduleRender()">
       </label>
       <button class="btn btn-ghost btn-sm" id="explodePlayBtn" style="padding:3px 7px;font-size:0.65rem;min-width:0" title="Animate explode">▶</button>
       <div class="tb-spacer"></div>
@@ -444,46 +444,8 @@ function pickUp(gx,gy){
 }
 
 // ─────────────────────────────────────────────────────
+// AUTO BUILD / AUTO FILL — Web Worker for non-blocking packing
 // ─────────────────────────────────────────────────────
-// AUTO BUILD — layer-based multi-type pallet packing
-// Tries all 6 orientations per type, picks optimal
-// ─────────────────────────────────────────────────────
-
-// Find the best layer layout for a given footprint bw×bd on the pallet
-function _abLayouts(bw,bd,overhang){
-  // With overhang: allow boxes to extend up to 49% of their size beyond pallet edge
-  const ohW=overhang?Math.floor(bw*0.49):0, ohD=overhang?Math.floor(bd*0.49):0;
-  const PW=S.palletW+ohW,PD=S.palletD+ohD,layouts=[];
-  function tryRowsD(wa,da,wb,db){
-    const nxa=Math.floor(PW/wa),nya=Math.floor(PD/da);
-    if(nxa<=0) return;
-    const cells=[];
-    for(let iy=0;iy<nya;iy++) for(let ix=0;ix<nxa;ix++)
-      cells.push({gx:ix*wa,gy:iy*da,w:wa,d:da});
-    const remD=PD-nya*da,nxb=Math.floor(PW/wb),nyb=remD>=db?Math.floor(remD/db):0;
-    for(let iy=0;iy<nyb;iy++) for(let ix=0;ix<nxb;ix++)
-      cells.push({gx:ix*wb,gy:nya*da+iy*db,w:wb,d:db});
-    if(cells.length) layouts.push(cells);
-  }
-  function tryColsW(wa,da,wb,db){
-    const nxa=Math.floor(PW/wa),nya=Math.floor(PD/da);
-    if(nya<=0) return;
-    const cells=[];
-    for(let iy=0;iy<nya;iy++) for(let ix=0;ix<nxa;ix++)
-      cells.push({gx:ix*wa,gy:iy*da,w:wa,d:da});
-    const remW=PW-nxa*wa,nxb=remW>=wb?Math.floor(remW/wb):0,nyb=Math.floor(PD/db);
-    for(let iy=0;iy<nyb;iy++) for(let ix=0;ix<nxb;ix++)
-      cells.push({gx:nxa*wa+ix*wb,gy:iy*db,w:wb,d:db});
-    if(cells.length) layouts.push(cells);
-  }
-  const O=[[bw,bd],[bd,bw]];
-  for(const[wa,da]of O)for(const[wb,db]of O){tryRowsD(wa,da,wb,db);tryColsW(wa,da,wb,db);}
-  if(!layouts.length) return null;
-  layouts.sort((a,b)=>b.length-a.length);
-  return layouts[0];
-}
-
-// ── AUTO BUILD / AUTO FILL — Web Worker for non-blocking packing ──
 const _WORKER_SRC=`
 const PERMS=[[0,1,2],[1,0,2],[0,2,1],[2,0,1],[1,2,0],[2,1,0]];
 function abLayouts(bw,bd,overhang,PW,PD){
@@ -583,7 +545,7 @@ let _abTickId=0;
 function _abTick(){ if(_abBusy){scheduleRender();_abTickId=requestAnimationFrame(_abTick);}else{_abTickId=0;} }
 function _abStart(label){ _abBusy=true; _abLabel=label; _abStartT=performance.now(); clearTimeout(_abTimer); _abTimer=setTimeout(()=>{if(_abBusy){_abDone();toast('Packing timed out');}},10000); if(!_abTickId)_abTickId=requestAnimationFrame(_abTick); }
 function _abBlock(){ if(_abBusy){toast(_abLabel+' in progress…');return true;} return false; }
-function _abDone(){ _abBusy=false; _abLabel=''; clearTimeout(_abTimer); scheduleRender(); }
+function _abDone(){ _abBusy=false; _abLabel=''; clearTimeout(_abTimer); if(_abTickId){cancelAnimationFrame(_abTickId);_abTickId=0;} scheduleRender(); }
 function _abApplyResult(r){
   if(r.ver!==_abVer){_abDone();return;} // stale result
   _abDone();
@@ -1940,8 +1902,8 @@ isoC.addEventListener('pointermove',e=>{
     }
     return;
   }
-  // Hover preview — mouse only (touch has no persistent cursor)
-  if(e.pointerType==='mouse'){
+  // Hover preview — mouse + pen (touch has no persistent cursor)
+  if(e.pointerType!=='touch'){
     const mx=e.clientX,my=e.clientY;
     if(Math.abs(mx-_lastMx)<1&&Math.abs(my-_lastMy)<1) return;
     _lastMx=mx; _lastMy=my;
@@ -1987,7 +1949,7 @@ isoC.addEventListener('pointercancel',e=>{
 });
 
 isoC.addEventListener('pointerleave',e=>{
-  if(e.pointerType==='mouse'){ S.hGx=null; S.hGy=null; _lastMx=-1; _lastMy=-1; scheduleRender(); }
+  if(e.pointerType!=='touch'){ S.hGx=null; S.hGy=null; _lastMx=-1; _lastMy=-1; scheduleRender(); }
 });
 
 // Context menu (mouse right-click only)
