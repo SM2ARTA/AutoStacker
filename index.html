@@ -1031,7 +1031,7 @@ function renderBTL(){
     if(!dt||!confirm(`Delete box type "${dt.sku?dt.sku+' ':''}${dt.name}"?`)) return;
     S.types=S.types.filter(t=>t.id!==b.dataset.del);
     if(S.activeId===b.dataset.del) S.activeId=S.types[0]?.id||null;
-    renderBTL(); updStats();
+    renderBTL(); updStats(); scheduleRender();
   }));
   // Inline weight editing
   el.querySelectorAll('[data-wt]').forEach(inp=>{
@@ -1044,7 +1044,7 @@ function renderBTL(){
   el.querySelectorAll('[data-flat]').forEach(cb=>{
     cb.addEventListener('change',e=>{e.stopPropagation();
       const t=S.types.find(x=>x.id===cb.dataset.flat);
-      if(t){ t.flat=cb.checked; if(cb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); }
+      if(t){ t.flat=cb.checked; if(cb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); scheduleRender(); }
     });
   });
   // Inline color picker
