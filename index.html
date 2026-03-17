@@ -399,6 +399,13 @@ function inBounds(gx,gy,w,d){
   }
   return sup>=area*0.5;
 }
+function hasOverlap(gx,gy,w,d,gz,h,excl){
+  for(const b of S.boxes){
+    if(b.id===excl) continue;
+    if(b.gx<gx+w&&b.gx+b.w>gx&&b.gy<gy+d&&b.gy+b.d>gy&&b.gz<gz+h&&b.gz+b.h>gz) return true;
+  }
+  return false;
+}
 function saveHist(){ S.past.push(JSON.stringify(S.boxes)); if(S.past.length>80) S.past.shift(); S.future=[]; updUR(); }
 function undo(){ if(!S.past.length) return; S.future.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.past.pop()); updUR(); _isoDirty(); scheduleRender(); }
 function redo(){ if(!S.future.length) return; S.past.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.future.pop()); updUR(); _isoDirty(); scheduleRender(); }
@@ -408,8 +415,10 @@ function placeBox(gx,gy){
   const t=atype(); if(!t) return;
   const w=tw(t),d=td(t),h=th(t);
   if(!inBounds(gx,gy,w,d)){ toast('Out of bounds'); return; }
+  const gz=gravZ(gx,gy,w,d);
+  if(hasOverlap(gx,gy,w,d,gz,h)){ toast('Overlap'); return; }
   saveHist();
-  S.boxes.push({id:S.nxtId++,gx,gy,gz:gravZ(gx,gy,w,d),w,d,h,color:t.color,sku:t.sku||'',name:t.name});
+  S.boxes.push({id:S.nxtId++,gx,gy,gz,w,d,h,color:t.color,sku:t.sku||'',name:t.name});
   _isoDirty(); scheduleRender();
 }
 
@@ -616,8 +625,10 @@ function autoFillType(typeId){
 function dropAt(gx,gy){
   const b=S.boxes.find(x=>x.id===S.selId); if(!b) return;
   if(!inBounds(gx,gy,b.w,b.d)){ toast('Out of bounds'); return; }
+  const gz=gravZ(gx,gy,b.w,b.d,b.id);
+  if(hasOverlap(gx,gy,b.w,b.d,gz,b.h,b.id)){ toast('Overlap'); return; }
   saveHist();
-  b.gx=gx; b.gy=gy; b.gz=gravZ(gx,gy,b.w,b.d,b.id);
+  b.gx=gx; b.gy=gy; b.gz=gz;
   S.selId=null; _isoDirty(); updModeUI(); scheduleRender();
   toast('Moved ✓');
 }
@@ -779,7 +790,7 @@ function renderIso(){
   // Place mode hover preview
   if(S.hGx!==null&&S.mode==='place'){
     const t=atype(); if(t){
-      const w=tw(t),d=td(t),h=th(t), gz=gravZ(S.hGx,S.hGy,w,d), ok=inBounds(S.hGx,S.hGy,w,d);
+      const w=tw(t),d=td(t),h=th(t), gz=gravZ(S.hGx,S.hGy,w,d), ok=inBounds(S.hGx,S.hGy,w,d)&&!hasOverlap(S.hGx,S.hGy,w,d,gz,h);
       if(ok){
         const[_hx,_hy]=_hOff(S.hGx,S.hGy,w,d);
         drawBox(S.hGx+_hx,S.hGy+_hy,gz+_eOff(gz),w,d,h,t.color,0.36);
@@ -798,8 +809,8 @@ function renderIso(){
   // Move mode drop preview
   if(S.hGx!==null&&S.mode==='move'&&S.selId!==null){
     const b=S.boxes.find(x=>x.id===S.selId); if(b){
-      const ok=inBounds(S.hGx,S.hGy,b.w,b.d);
       const _mgz=gravZ(S.hGx,S.hGy,b.w,b.d,b.id);
+      const ok=inBounds(S.hGx,S.hGy,b.w,b.d)&&!hasOverlap(S.hGx,S.hGy,b.w,b.d,_mgz,b.h,b.id);
       const[_mhx,_mhy]=_hOff(S.hGx,S.hGy,b.w,b.d);
       drawBox(S.hGx+_mhx,S.hGy+_mhy,_mgz+_eOff(_mgz),b.w,b.d,b.h,ok?b.color:'#e05858',ok?0.38:0.22);
       if(ok){
