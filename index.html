@@ -1986,7 +1986,7 @@ async function _psbLoadIndex(){
 }
 async function _psbSaveIndex(idx){
   if(!SB) return;
-  await SB.from('shared_state').upsert({id:PSB_INDEX,value:JSON.stringify(idx),updated_at:new Date().toISOString()});
+  await SB.from('shared_state').upsert({id:PSB_INDEX,value:idx,updated_at:new Date().toISOString()});
 }
 
 function _psbSnapshot(){
@@ -2050,7 +2050,7 @@ async function showSaveModal(){
     const id=existingId||'psb-'+Date.now();
     const snap=_psbSnapshot();
     try{
-      await SB.from('shared_state').upsert({id,value:JSON.stringify(snap),updated_at:new Date().toISOString()});
+      await SB.from('shared_state').upsert({id,value:snap,updated_at:new Date().toISOString()});
       const newIdx=idx.filter(e=>e.id!==id);
       newIdx.unshift({id,name:name.trim(),date:new Date().toLocaleDateString()});
       await _psbSaveIndex(newIdx);
