@@ -377,10 +377,10 @@ function cl(v){ return Math.max(0,Math.min(255,v|0)); }
 // ─────────────────────────────────────────────────────
 function gravZ(gx,gy,w,d,excl){
   let z=0;
-  S.boxes.forEach(b=>{
-    if(b.id===excl) return;
+  for(const b of _spQuery(gx,gy,w,d)){
+    if(b.id===excl) continue;
     if(b.gx<gx+w&&b.gx+b.w>gx&&b.gy<gy+d&&b.gy+b.d>gy) z=Math.max(z,b.gz+b.h);
-  });
+  }
   return z;
 }
 function inBounds(gx,gy,w,d){
@@ -400,7 +400,7 @@ function inBounds(gx,gy,w,d){
   return sup>=area*0.5;
 }
 function hasOverlap(gx,gy,w,d,gz,h,excl){
-  for(const b of S.boxes){
+  for(const b of _spQuery(gx,gy,w,d)){
     if(b.id===excl) continue;
     if(b.gx<gx+w&&b.gx+b.w>gx&&b.gy<gy+d&&b.gy+b.d>gy&&b.gz<gz+h&&b.gz+b.h>gz) return true;
   }
@@ -674,8 +674,32 @@ function drawBox(gx,gy,gz,w,d,h,color,alpha,sel){
 }
 
 // Topological sort for correct isometric draw order (handles varying-size boxes)
-let _isoCache=null;
-function _isoDirty(){ _isoCache=null; }
+let _isoCache=null, _spGrid=null;
+function _isoDirty(){ _isoCache=null; _spGrid=null; }
+// Spatial hash grid for fast placement queries (gravZ, hasOverlap)
+const _SP=12; // cell size in inches
+function _spEnsure(){
+  if(_spGrid) return;
+  _spGrid=new Map();
+  for(const b of S.boxes){
+    const x0=Math.floor(b.gx/_SP),y0=Math.floor(b.gy/_SP);
+    const x1=Math.floor((b.gx+b.w-1e-9)/_SP),y1=Math.floor((b.gy+b.d-1e-9)/_SP);
+    for(let cy=y0;cy<=y1;cy++) for(let cx=x0;cx<=x1;cx++){
+      const k=cx+','+cy; let c=_spGrid.get(k); if(!c){c=[];_spGrid.set(k,c);} c.push(b);
+    }
+  }
+}
+function _spQuery(gx,gy,w,d){
+  _spEnsure();
+  const x0=Math.floor(gx/_SP),y0=Math.floor(gy/_SP);
+  const x1=Math.floor((gx+w-1e-9)/_SP),y1=Math.floor((gy+d-1e-9)/_SP);
+  const seen=new Set(), out=[];
+  for(let cy=y0;cy<=y1;cy++) for(let cx=x0;cx<=x1;cx++){
+    const c=_spGrid.get(cx+','+cy);
+    if(c) for(const b of c){ if(!seen.has(b.id)){seen.add(b.id);out.push(b);} }
+  }
+  return out;
+}
 function isoSort(boxes){
   const n=boxes.length;
   if(n<=1) return boxes.slice();
