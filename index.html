@@ -425,9 +425,11 @@ function hasOverlap(gx,gy,w,d,gz,h,excl){
   }
   return false;
 }
-function saveHist(){ S.past.push(JSON.stringify(S.boxes)); if(S.past.length>80) S.past.shift(); S.future=[]; updUR(); }
-function undo(){ if(_abBusy||!S.past.length) return; S.future.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.past.pop()); updUR(); _isoDirty(); scheduleRender(); }
-function redo(){ if(_abBusy||!S.future.length) return; S.past.push(JSON.stringify(S.boxes)); S.boxes=JSON.parse(S.future.pop()); updUR(); _isoDirty(); scheduleRender(); }
+function _undoSnap(){return JSON.stringify({b:S.boxes,t:S.types,a:S.activeId});}
+function _undoRestore(s){const d=JSON.parse(s);S.boxes=d.b;S.types=d.t;S.activeId=d.a;_isoDirty();renderBTL();scheduleRender();}
+function saveHist(){ S.past.push(_undoSnap()); if(S.past.length>80) S.past.shift(); S.future=[]; updUR(); }
+function undo(){ if(_abBusy||!S.past.length) return; S.future.push(_undoSnap()); _undoRestore(S.past.pop()); updUR(); }
+function redo(){ if(_abBusy||!S.future.length) return; S.past.push(_undoSnap()); _undoRestore(S.future.pop()); updUR(); }
 function updUR(){ document.getElementById('undoBtn').disabled=!S.past.length; document.getElementById('redoBtn').disabled=!S.future.length; }
 
 function placeBox(gx,gy){
@@ -549,9 +551,13 @@ self.onmessage=function(e){
     self.postMessage({ver:d.ver,...r});
   }catch(err){self.postMessage({ver:d.ver,error:err.message});}
 };`;
-let _abWorker=null, _abVer=0, _abBusy=false, _abLabel='', _abStartT=0, _abTimer=0;
+let _abWorker=null, _abWorkerFailed=false, _abVer=0, _abBusy=false, _abLabel='', _abStartT=0, _abTimer=0;
 function _abGetWorker(){
-  if(!_abWorker) _abWorker=new Worker(URL.createObjectURL(new Blob([_WORKER_SRC],{type:'application/javascript'})));
+  if(_abWorkerFailed) return null;
+  if(!_abWorker){
+    try{_abWorker=new Worker(URL.createObjectURL(new Blob([_WORKER_SRC],{type:'application/javascript'})));}
+    catch(e){console.warn('Worker creation failed, using sync fallback:',e);_abWorkerFailed=true;return null;}
+  }
   return _abWorker;
 }
 function _abReadSettings(){
@@ -577,6 +583,31 @@ function _abApplyResult(r){
   return r;
 }
 
+// Sync fallback — eval worker code on main thread if Worker creation fails
+let _abSyncFn=null;
+function _abRunSync(msg){
+  if(!_abSyncFn) _abSyncFn=new Function('d',_WORKER_SRC.replace('self.onmessage=function(e){\n  const d=e.data;','').replace(/self\.postMessage\((.*?)\);/g,'return $1;').replace('};',''));
+  // Fallback: just run doBuild/doFill directly by evaling the worker source
+  try{
+    const PERMS=[[0,1,2],[1,0,2],[0,2,1],[2,0,1],[1,2,0],[2,1,0]];
+    const fn=new Function('PERMS','msg',`${_WORKER_SRC.split('self.onmessage')[0]}\nreturn msg.cmd==='build'?doBuild(msg):doFill(msg);`);
+    return fn(PERMS,msg);
+  }catch(e){return{error:e.message};}
+}
+
+function _abDispatch(msg,onResult){
+  const w=_abGetWorker();
+  if(w){
+    w.onmessage=e=>onResult(e.data);
+    w.postMessage(msg);
+  } else {
+    // Sync fallback — blocks UI but works
+    const r=_abRunSync(msg);
+    _abDone();
+    onResult({ver:msg.ver,...r});
+  }
+}
+
 function autoBuild(){
   if(_abBlock()) return;
   const settings=_abReadSettings();
@@ -590,14 +621,12 @@ function autoBuild(){
   saveHist();
   S.boxes=[]; _isoDirty(); scheduleRender();
   _abStart('Auto Build'); const ver=++_abVer;
-  const w=_abGetWorker();
-  w.onmessage=e=>{
-    const r=_abApplyResult(e.data);
+  _abDispatch({cmd:'build',ver,...settings,items},data=>{
+    const r=_abApplyResult(data);
     if(!r) return;
     if(r.warns&&r.warns.length) toast(`${r.total} boxes, ${r.layers||'?'} layers, ${r.peakH}" — ${r.warns.join(', ')}`);
     else toast(`${r.total} boxes, ${r.layers||'?'} layers, ${r.peakH}" tall, ${Math.round(r.totalWt)}lb`);
-  };
-  w.postMessage({cmd:'build',ver,...settings,items});
+  });
 }
 
 function autoFillType(typeId){
@@ -608,15 +637,13 @@ function autoFillType(typeId){
   saveHist();
   S.boxes=[]; _isoDirty(); scheduleRender();
   _abStart('Auto Fill: '+(t.sku||t.name)); const ver=++_abVer;
-  const w=_abGetWorker();
-  w.onmessage=e=>{
-    const r=_abApplyResult(e.data);
+  _abDispatch({cmd:'fill',ver,...settings,type:{w:t.w,d:t.d,h:t.h,flat:!!t.flat,weight:t.weight||0,color:t.color,sku:t.sku||'',name:t.name,label:t.sku||t.name}},data=>{
+    const r=_abApplyResult(data);
     if(!r) return;
     const qe=document.getElementById('abq-'+t.id);
     if(qe) qe.value=r.total;
     toast(`Auto-filled: ${r.total}× ${t.sku||t.name}, ${r.layerNum} layers, ${r.peakH}" tall`);
-  };
-  w.postMessage({cmd:'fill',ver,...settings,type:{w:t.w,d:t.d,h:t.h,flat:!!t.flat,weight:t.weight||0,color:t.color,sku:t.sku||'',name:t.name,label:t.sku||t.name}});
+  });
 }
 
 function dropAt(gx,gy){
@@ -673,7 +700,7 @@ function drawBox(gx,gy,gz,w,d,h,color,alpha,sel){
 
 // Topological sort for correct isometric draw order (handles varying-size boxes)
 let _isoCache=null, _spGrid=null;
-function _isoDirty(){ _isoCache=null; _spGrid=null; }
+function _isoDirty(){ _isoCache=null; _spGrid=null; _topDirty=true; }
 // Spatial hash grid for fast placement queries (gravZ, hasOverlap)
 const _SP=12; // cell size in inches
 function _spEnsure(){
@@ -870,47 +897,69 @@ function renderIso(){
 // ─────────────────────────────────────────────────────
 const topC=document.getElementById('topC');
 const tCtx=topC.getContext('2d');
+let _topBaseC=null, _topCs=0, _topMaxH=0; // offscreen cache for base heatmap
 
-function renderTop(){
+function _renderTopBase(){
   const W=S.palletW,D=S.palletD;
-  const cs=Math.max(2,Math.min(7,Math.floor(170/Math.max(W,D))));
-  topC.width=W*cs+1; topC.height=D*cs+1;
-  tCtx.fillStyle='#E4E6EA'; tCtx.fillRect(0,0,topC.width,topC.height);
+  _topCs=Math.max(2,Math.min(7,Math.floor(170/Math.max(W,D))));
+  const cs=_topCs;
+  if(!_topBaseC) _topBaseC=document.createElement('canvas');
+  _topBaseC.width=W*cs+1; _topBaseC.height=D*cs+1;
+  const c=_topBaseC.getContext('2d');
+  c.fillStyle='#E4E6EA'; c.fillRect(0,0,_topBaseC.width,_topBaseC.height);
 
   const hmap=Array.from({length:D},()=>Array(W).fill(0));
   const cmap=Array.from({length:D},()=>Array(W).fill(null));
-  const wmap=Array.from({length:D},()=>Array(W).fill(0)); // weight per cell
+  const wmap=Array.from({length:D},()=>Array(W).fill(0));
   const typeMap={};S.types.forEach(t=>{if(t.sku)typeMap[t.sku]=t;typeMap[t.name]=t;});
+  let cogX=0,cogY=0,totalWtAll=0;
   [...S.boxes].sort((a,b)=>(b.gz+b.h)-(a.gz+a.h)).forEach(b=>{
     const t=typeMap[b.sku]||typeMap[b.name];
-    const bwt=(t&&t.weight)?t.weight/(b.w*b.d):0; // weight per sq inch
+    const bwt=(t&&t.weight)?t.weight/(b.w*b.d):0;
     const bx0=Math.floor(b.gx),by0=Math.floor(b.gy),bx1=Math.ceil(b.gx+b.w),by1=Math.ceil(b.gy+b.d);
     for(let y=by0;y<by1;y++) for(let x=bx0;x<bx1;x++){
       if(x>=0&&x<W&&y>=0&&y<D){
-        if(b.gz+b.h>=hmap[y][x]){ hmap[y][x]=b.gz+b.h; cmap[y][x]=b.color; }
+        if(b.gz+b.h>=hmap[y][x]){hmap[y][x]=b.gz+b.h;cmap[y][x]=b.color;}
         wmap[y][x]+=bwt;
       }
     }
+    if(t&&t.weight){const bw=t.weight;cogX+=(b.gx+b.w/2)*bw;cogY+=(b.gy+b.d/2)*bw;totalWtAll+=bw;}
   });
-  const maxH=hmap.flat().reduce((a,b)=>Math.max(a,b),0);
+  _topMaxH=hmap.flat().reduce((a,b)=>Math.max(a,b),0);
   const maxWt=wmap.flat().reduce((a,b)=>Math.max(a,b),0);
 
   for(let y=0;y<D;y++) for(let x=0;x<W;x++){
-    const h=hmap[y][x],c=cmap[y][x];
-    if(c){
-      tCtx.fillStyle=c; tCtx.globalAlpha=0.32+(maxH>0?h/maxH:0)*0.58; tCtx.fillRect(x*cs,y*cs,cs,cs);
-      // Weight distribution overlay: red tint for heavier areas
-      if(maxWt>0&&wmap[y][x]>0){
-        const wi=wmap[y][x]/maxWt;
-        tCtx.fillStyle=`rgba(200,40,40,${wi*0.35})`; tCtx.fillRect(x*cs,y*cs,cs,cs);
-      }
-      tCtx.globalAlpha=1;
+    const h=hmap[y][x],cl=cmap[y][x];
+    if(cl){
+      c.fillStyle=cl; c.globalAlpha=0.32+(_topMaxH>0?h/_topMaxH:0)*0.58; c.fillRect(x*cs,y*cs,cs,cs);
+      if(maxWt>0&&wmap[y][x]>0){c.fillStyle=`rgba(200,40,40,${wmap[y][x]/maxWt*0.35})`;c.fillRect(x*cs,y*cs,cs,cs);}
+      c.globalAlpha=1;
     }
-    tCtx.strokeStyle=h>0?'rgba(0,0,0,0.2)':'rgba(0,0,0,0.06)'; tCtx.lineWidth=0.5;
-    tCtx.strokeRect(x*cs+.25,y*cs+.25,cs-.5,cs-.5);
-    if(h>0&&cs>=5){ tCtx.fillStyle='rgba(0,0,0,0.55)'; tCtx.font=`${Math.max(4,cs*.62)|0}px JetBrains Mono,monospace`; tCtx.textAlign='center'; tCtx.textBaseline='middle'; tCtx.fillText(h,x*cs+cs/2,y*cs+cs/2); }
+    c.strokeStyle=h>0?'rgba(0,0,0,0.2)':'rgba(0,0,0,0.06)'; c.lineWidth=0.5;
+    c.strokeRect(x*cs+.25,y*cs+.25,cs-.5,cs-.5);
+    if(h>0&&cs>=5){c.fillStyle='rgba(0,0,0,0.55)';c.font=`${Math.max(4,cs*.62)|0}px JetBrains Mono,monospace`;c.textAlign='center';c.textBaseline='middle';c.fillText(h,x*cs+cs/2,y*cs+cs/2);}
   }
+  // Center of gravity crosshair
+  if(totalWtAll>0){
+    const cx=(cogX/totalWtAll)*cs, cy=(cogY/totalWtAll)*cs;
+    c.strokeStyle='rgba(200,40,40,0.7)';c.lineWidth=1.5;c.setLineDash([3,3]);
+    c.beginPath();c.moveTo(cx,0);c.lineTo(cx,D*cs);c.stroke();
+    c.beginPath();c.moveTo(0,cy);c.lineTo(W*cs,cy);c.stroke();
+    c.setLineDash([]);
+    c.fillStyle='#C82828';c.beginPath();c.arc(cx,cy,3,0,Math.PI*2);c.fill();
+  }
+  document.getElementById('legend').innerHTML=`<div class="legend-title">Height · Weight Map</div>
+    <div style="font-size:0.62rem;color:var(--muted);line-height:1.7">Numbers = height<br>
+    <span style="color:var(--acc);font-family:'JetBrains Mono',monospace">Max: ${_topMaxH}"</span><br>
+    <span style="color:#C82828">Red tint</span> = weight · <span style="color:#C82828">+</span> = CoG</div>`;
+}
 
+function renderTop(){
+  if(_topDirty||!_topBaseC) _renderTopBase();
+  const cs=_topCs, W=S.palletW, D=S.palletD;
+  topC.width=_topBaseC.width; topC.height=_topBaseC.height;
+  tCtx.drawImage(_topBaseC,0,0);
+  // Hover overlay (drawn every frame, on top of cached base)
   if(S.hGx!==null){
     let w,d,col;
     if(S.mode==='place'){const t=atype();if(t){w=tw(t);d=td(t);col=t.color;}}
@@ -921,11 +970,6 @@ function renderTop(){
       tCtx.strokeRect(S.hGx*cs+.75,S.hGy*cs+.75,w*cs-1.5,d*cs-1.5);
     }
   }
-
-  document.getElementById('legend').innerHTML=`<div class="legend-title">Height · Weight Map</div>
-    <div style="font-size:0.62rem;color:var(--muted);line-height:1.7">Numbers = height<br>
-    <span style="color:var(--acc);font-family:'JetBrains Mono',monospace">Max: ${maxH}"</span><br>
-    <span style="color:#C82828">Red tint</span> = weight density</div>`;
 }
 
 // ─────────────────────────────────────────────────────
@@ -1088,6 +1132,7 @@ document.getElementById('btl').addEventListener('click',e=>{
     const commit=()=>{
       const v=parseFloat(inp.value);
       if(v>0&&v!==cur&&!_abBusy){
+        saveHist();
         if(rawIdx===0) t.w=v; else if(rawIdx===1) t.d=v; else t.h=v;
         S.boxes.forEach(b=>{
           if(b.sku===t.sku&&b.name===t.name){ b.w=tw(t); b.d=td(t); b.h=th(t); }
@@ -1108,6 +1153,7 @@ document.getElementById('btl').addEventListener('click',e=>{
     e.stopPropagation();
     const dt=S.types.find(t=>t.id===tid);
     if(!dt||!confirm(`Delete box type "${dt.sku?dt.sku+' ':''}${dt.name}"?`)) return;
+    saveHist();
     S.types=S.types.filter(t=>t.id!==tid);
     if(S.activeId===tid) S.activeId=S.types[0]?.id||null;
     renderBTL(); updStats(); scheduleRender();
@@ -1138,6 +1184,7 @@ document.getElementById('btl').addEventListener('input',e=>{
 
 function flipType(id){
   const t=S.types.find(x=>x.id===id); if(!t) return;
+  saveHist();
   if(t.flat){
     // Flat only: just swap W↔D (orient 0↔1), keep H as height
     t.orient=(t.orient||0)===0?1:0;
@@ -1157,12 +1204,15 @@ function flipType(id){
 // ─────────────────────────────────────────────────────
 // RENDER
 // ─────────────────────────────────────────────────────
+let _topDirty=true;
 function render(){
   _renderPending=false;
   const r=cvWrap.getBoundingClientRect(); LW=r.width; LH=r.height;
   isoC.style.width=LW+'px'; isoC.style.height=LH+'px';
   if(S.viewMode==='top') renderTopView(); else renderIso();
-  renderTop(); updStats();
+  renderTop(); // base cached; hover overlay redrawn each frame
+  if(_topDirty) _topDirty=false;
+  updStats();
 }
 let _renderPending=false;
 function scheduleRender(){
@@ -2204,7 +2254,10 @@ function _psbSnapshot(){
 
 function _psbRestore(snap){
   if(!snap||typeof snap!=='object'||!snap.types){throw new Error('Invalid snapshot format');}
-  S.palletW=snap.palletW||48; S.palletD=snap.palletD||40;
+  // Validate pallet dimensions
+  const pw=Number(snap.palletW)||48, pd=Number(snap.palletD)||40;
+  if(pw<1||pw>999||pd<1||pd>999) throw new Error('Invalid pallet dimensions');
+  S.palletW=pw; S.palletD=pd;
   document.getElementById('pw').value=S.palletW;
   document.getElementById('pd').value=S.palletD;
   S.types=(snap.types||[]).map(t=>({id:t.id,sku:t.sku||'',name:t.name||'',w:t.w||12,d:t.d||12,h:t.h||12,color:t.color||'#888',orient:t.orient||0,weight:t.weight||0,flat:!!t.flat}));
@@ -2221,12 +2274,26 @@ function _closeModal(){ document.querySelectorAll('.modal-bg').forEach(m=>m.remo
 function _makeModal(html){
   _closeModal();
   const bg=document.createElement('div'); bg.className='modal-bg';
+  bg.setAttribute('role','dialog'); bg.setAttribute('aria-modal','true');
   const box=document.createElement('div'); box.className='modal';
   box.innerHTML=html;
   box.addEventListener('click',e=>e.stopPropagation());
   bg.appendChild(box);
   bg.addEventListener('click',()=>_closeModal());
+  // Focus trap
+  bg.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){_closeModal();return;}
+    if(e.key==='Tab'){
+      const focusable=box.querySelectorAll('input,button,[tabindex]');
+      if(!focusable.length)return;
+      const first=focusable[0],last=focusable[focusable.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+    }
+  });
   document.body.appendChild(bg);
+  // Auto-focus first input or button
+  setTimeout(()=>{const f=box.querySelector('input,button');if(f)f.focus();},50);
   return box;
 }
 
