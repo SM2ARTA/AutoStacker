@@ -985,118 +985,142 @@ function updModeUI(){
 // ─────────────────────────────────────────────────────
 // BOX TYPE LIST
 // ─────────────────────────────────────────────────────
-function renderBTL(){
-  // Preserve qty values across re-renders
-  const prevQtys={};
-  S.types.forEach(t=>{const e=document.getElementById('abq-'+t.id);if(e)prevQtys[t.id]=e.value;});
+let _btlTypeIds=null; // track when full rebuild is needed
+function _btlRowHTML(t,qty){
+  return `<div class="bti${t.id===S.activeId?' active':''}${(t.orient||0)>0?' flipped':''}" data-id="${t.id}">
+    <div class="bti-sw" style="background:${t.color}"><input type="color" data-clr="${t.id}" value="${t.color}" style="opacity:0;width:100%;height:100%;cursor:pointer;position:absolute;top:0;left:0"></div>
+    <div class="bti-info">
+      <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:5px">'+t.sku+'</span>':''}${t.name}</div>
+      <div class="bti-dim"><span class="dim-v" data-dim="${t.id}-0">${tw(t)}</span>" × <span class="dim-v" data-dim="${t.id}-1">${td(t)}</span>" × <span class="dim-v" data-dim="${t.id}-2">${th(t)}</span>"</div>
+      <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
+        <input type="number" class="inp" data-wt="${t.id}" value="${t.weight||0}" min="0" max="9999" step="0.1"
+          style="width:42px;padding:2px 4px;font-size:0.6rem;text-align:center;font-family:'JetBrains Mono',monospace;border-color:var(--bdr);border-radius:3px"
+          title="Weight (lbs)">
+        <span style="font-size:0.55rem;color:var(--muted)">lb</span>
+        <label class="chk-label" style="font-size:0.55rem;margin-left:2px">
+          <input type="checkbox" data-flat="${t.id}" ${t.flat?'checked':''} style="margin:0;accent-color:var(--blue)"> flat
+        </label>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
+      <input type="number" class="inp" id="abq-${t.id}" value="${qty}" min="0" max="9999"
+        style="width:42px;padding:3px 2px;font-size:0.72rem;text-align:center;font-family:'JetBrains Mono',monospace;border-color:var(--bdr);border-radius:4px;font-weight:600"
+        title="Qty for Auto Build">
+      <span style="font-size:0.48rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase">QTY</span>
+    </div>
+    <div class="bti-actions" style="flex-direction:column;gap:1px">
+      <button class="bti-btn" data-autofill="${t.id}" title="Auto-fill pallet with this type" style="font-size:0.65rem;color:var(--blue)">▶</button>
+      <button class="bti-btn flip-btn" data-flip="${t.id}" title="Rotate orientation">⟳</button>
+      <button class="bti-btn del-btn" data-del="${t.id}" title="Delete">✕</button>
+    </div>
+  </div>`;
+}
 
+function renderBTL(){
   const el=document.getElementById('btl');
   document.getElementById('typeCnt').textContent=`(${S.types.length})`;
-  el.innerHTML=S.types.map(t=>`
-    <div class="bti${t.id===S.activeId?' active':''}${(t.orient||0)>0?' flipped':''}" data-id="${t.id}">
-      <div class="bti-sw" style="background:${t.color}"><input type="color" data-clr="${t.id}" value="${t.color}" style="opacity:0;width:100%;height:100%;cursor:pointer;position:absolute;top:0;left:0" onclick="event.stopPropagation()"></div>
-      <div class="bti-info">
-        <div class="bti-name">${t.sku?'<span style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:var(--acc);margin-right:5px">'+t.sku+'</span>':''}${t.name}</div>
-        <div class="bti-dim"><span class="dim-v" data-dim="${t.id}-0">${tw(t)}</span>" × <span class="dim-v" data-dim="${t.id}-1">${td(t)}</span>" × <span class="dim-v" data-dim="${t.id}-2">${th(t)}</span>"</div>
-        <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
-          <input type="number" class="inp" data-wt="${t.id}" value="${t.weight||0}" min="0" max="9999" step="0.1"
-            style="width:42px;padding:2px 4px;font-size:0.6rem;text-align:center;font-family:'JetBrains Mono',monospace;border-color:var(--bdr);border-radius:3px"
-            title="Weight (lbs)" onclick="event.stopPropagation()">
-          <span style="font-size:0.55rem;color:var(--muted)">lb</span>
-          <label class="chk-label" style="font-size:0.55rem;margin-left:2px" onclick="event.stopPropagation()">
-            <input type="checkbox" data-flat="${t.id}" ${t.flat?'checked':''} style="margin:0;accent-color:var(--blue)"> flat
-          </label>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0">
-        <input type="number" class="inp" id="abq-${t.id}" value="${prevQtys[t.id]||0}" min="0" max="9999"
-          style="width:42px;padding:3px 2px;font-size:0.72rem;text-align:center;font-family:'JetBrains Mono',monospace;border-color:var(--bdr);border-radius:4px;font-weight:600"
-          title="Qty for Auto Build" onclick="event.stopPropagation()">
-        <span style="font-size:0.48rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase">QTY</span>
-      </div>
-      <div class="bti-actions" style="flex-direction:column;gap:1px">
-        <button class="bti-btn" data-autofill="${t.id}" title="Auto-fill pallet with this type" style="font-size:0.65rem;color:var(--blue)">▶</button>
-        <button class="bti-btn flip-btn" data-flip="${t.id}" title="Rotate orientation">⟳</button>
-        <button class="bti-btn del-btn" data-del="${t.id}" title="Delete">✕</button>
-      </div>
-    </div>`).join('');
+  // Check if type list membership changed (add/delete/reorder/load)
+  const newIds=S.types.map(t=>t.id).join(',');
+  const needsRebuild=(_btlTypeIds!==newIds);
 
-  el.querySelectorAll('.bti').forEach(el=>{
-    el.addEventListener('click',e=>{
-      if(e.target.closest('[data-flip],[data-del],[data-wt],[data-flat],[data-autofill],[data-dim]')) return;
-      S.activeId=el.dataset.id; renderBTL(); updStats(); scheduleRender();
+  if(needsRebuild){
+    // Full rebuild — preserve qty values across
+    const prevQtys={};
+    S.types.forEach(t=>{const e=document.getElementById('abq-'+t.id);if(e)prevQtys[t.id]=e.value;});
+    el.innerHTML=S.types.map(t=>_btlRowHTML(t,prevQtys[t.id]||0)).join('');
+    _btlTypeIds=newIds;
+  } else {
+    // Fast path — update existing rows in place (skip if dim-ed input is active)
+    const editing=el.querySelector('.dim-ed');
+    el.querySelectorAll('.bti').forEach(row=>{
+      const t=S.types.find(x=>x.id===row.dataset.id); if(!t) return;
+      // Active / flipped classes
+      row.classList.toggle('active',t.id===S.activeId);
+      row.classList.toggle('flipped',(t.orient||0)>0);
+      // Swatch color
+      const sw=row.querySelector('.bti-sw'); if(sw) sw.style.background=t.color;
+      const clr=row.querySelector('[data-clr]'); if(clr) clr.value=t.color;
+      // Dimensions — only if not editing this row
+      if(!editing||!row.contains(editing)){
+        const dim=row.querySelector('.bti-dim');
+        if(dim) dim.innerHTML=`<span class="dim-v" data-dim="${t.id}-0">${tw(t)}</span>" × <span class="dim-v" data-dim="${t.id}-1">${td(t)}</span>" × <span class="dim-v" data-dim="${t.id}-2">${th(t)}</span>"`;
+      }
+      // Weight + flat (don't clobber focused inputs)
+      const wtInp=row.querySelector('[data-wt]');
+      if(wtInp&&document.activeElement!==wtInp) wtInp.value=t.weight||0;
+      const flatCb=row.querySelector('[data-flat]');
+      if(flatCb) flatCb.checked=!!t.flat;
     });
-  });
-  // Inline dimension editing — click span to edit W/D/H
-  el.querySelectorAll('.dim-v').forEach(sp=>{
-    sp.addEventListener('click',e=>{
-      e.stopPropagation();
-      const[tid,axis]=sp.dataset.dim.split('-');
-      const t=S.types.find(x=>x.id===tid); if(!t) return;
-      const ai=parseInt(axis); // 0=W,1=D,2=H (displayed)
-      const p=_PERMS[(t.orient||0)%6];
-      const rawIdx=p[ai]; // which raw field this display axis maps to
-      const cur=[t.w,t.d,t.h][rawIdx];
-      const inp=document.createElement('input');
-      inp.type='number'; inp.className='dim-ed'; inp.value=cur;
-      inp.min=0.5; inp.max=999; inp.step=0.01;
-      sp.replaceWith(inp); inp.focus(); inp.select();
-      const commit=()=>{
-        const v=parseFloat(inp.value);
-        if(v>0 && v!==cur){
-          if(rawIdx===0) t.w=v; else if(rawIdx===1) t.d=v; else t.h=v;
-          // Update placed boxes of this type
-          S.boxes.forEach(b=>{
-            if(b.sku===t.sku&&b.name===t.name){
-              if(rawIdx===0) b.w=tw(t); if(rawIdx===1) b.d=td(t); if(rawIdx===2) b.h=th(t);
-              // Recalculate all dims from type (orient may map differently per box)
-              b.w=tw(t); b.d=td(t); b.h=th(t);
-            }
-          });
-          _isoDirty(); scheduleRender();
-        }
-        renderBTL(); updStats();
-      };
-      inp.addEventListener('blur',commit);
-      inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}if(e.key==='Escape'){inp.value=cur;inp.blur();}});
-    });
-  });
-  el.querySelectorAll('[data-flip]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();flipType(b.dataset.flip);}));
-  el.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
-    e.stopPropagation();
-    const dt=S.types.find(t=>t.id===b.dataset.del);
-    if(!dt||!confirm(`Delete box type "${dt.sku?dt.sku+' ':''}${dt.name}"?`)) return;
-    S.types=S.types.filter(t=>t.id!==b.dataset.del);
-    if(S.activeId===b.dataset.del) S.activeId=S.types[0]?.id||null;
-    renderBTL(); updStats(); scheduleRender();
-  }));
-  // Inline weight editing
-  el.querySelectorAll('[data-wt]').forEach(inp=>{
-    inp.addEventListener('change',e=>{e.stopPropagation();
-      const t=S.types.find(x=>x.id===inp.dataset.wt);
-      if(t) t.weight=parseFloat(inp.value)||0;
-    });
-  });
-  // Inline flat-only toggle
-  el.querySelectorAll('[data-flat]').forEach(cb=>{
-    cb.addEventListener('change',e=>{e.stopPropagation();
-      const t=S.types.find(x=>x.id===cb.dataset.flat);
-      if(t){ t.flat=cb.checked; if(cb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); scheduleRender(); }
-    });
-  });
-  // Inline color picker
-  el.querySelectorAll('[data-clr]').forEach(inp=>{
-    inp.addEventListener('input',e=>{e.stopPropagation();
-      const t=S.types.find(x=>x.id===inp.dataset.clr);
-      if(t){ t.color=inp.value; inp.parentElement.style.background=inp.value;
-        S.boxes.forEach(b=>{if(b.sku===t.sku&&b.name===t.name) b.color=inp.value;}); scheduleRender(); }
-    });
-  });
-  // Auto-fill button per type
-  el.querySelectorAll('[data-autofill]').forEach(btn=>{
-    btn.addEventListener('click',e=>{e.stopPropagation();autoFillType(btn.dataset.autofill);});
-  });
+  }
 }
+
+// ── Event delegation for box type list (attached once at init) ──
+document.getElementById('btl').addEventListener('click',e=>{
+  const row=e.target.closest('.bti'); if(!row) return;
+  const tid=row.dataset.id;
+  // Dimension edit
+  const dimSp=e.target.closest('.dim-v');
+  if(dimSp){
+    e.stopPropagation();
+    const[dtid,axis]=dimSp.dataset.dim.split('-');
+    const t=S.types.find(x=>x.id===dtid); if(!t) return;
+    const ai=parseInt(axis);
+    const p=_PERMS[(t.orient||0)%6];
+    const rawIdx=p[ai];
+    const cur=[t.w,t.d,t.h][rawIdx];
+    const inp=document.createElement('input');
+    inp.type='number'; inp.className='dim-ed'; inp.value=cur;
+    inp.min=0.5; inp.max=999; inp.step=0.01;
+    dimSp.replaceWith(inp); inp.focus(); inp.select();
+    const commit=()=>{
+      const v=parseFloat(inp.value);
+      if(v>0&&v!==cur){
+        if(rawIdx===0) t.w=v; else if(rawIdx===1) t.d=v; else t.h=v;
+        S.boxes.forEach(b=>{
+          if(b.sku===t.sku&&b.name===t.name){ b.w=tw(t); b.d=td(t); b.h=th(t); }
+        });
+        _isoDirty(); scheduleRender();
+      }
+      renderBTL(); updStats();
+    };
+    inp.addEventListener('blur',commit);
+    inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();inp.blur();}if(ev.key==='Escape'){inp.value=cur;inp.blur();}});
+    return;
+  }
+  // Flip
+  if(e.target.closest('[data-flip]')){ e.stopPropagation(); flipType(tid); return; }
+  // Delete
+  if(e.target.closest('[data-del]')){
+    e.stopPropagation();
+    const dt=S.types.find(t=>t.id===tid);
+    if(!dt||!confirm(`Delete box type "${dt.sku?dt.sku+' ':''}${dt.name}"?`)) return;
+    S.types=S.types.filter(t=>t.id!==tid);
+    if(S.activeId===tid) S.activeId=S.types[0]?.id||null;
+    renderBTL(); updStats(); scheduleRender();
+    return;
+  }
+  // AutoFill
+  if(e.target.closest('[data-autofill]')){ e.stopPropagation(); autoFillType(tid); return; }
+  // Row click = select type (skip if clicking an input/label)
+  if(e.target.closest('input,label,[data-dim]')) return;
+  S.activeId=tid; renderBTL(); updStats(); scheduleRender();
+});
+document.getElementById('btl').addEventListener('change',e=>{
+  // Weight
+  const wtInp=e.target.closest('[data-wt]');
+  if(wtInp){ e.stopPropagation(); const t=S.types.find(x=>x.id===wtInp.dataset.wt); if(t) t.weight=parseFloat(wtInp.value)||0; return; }
+  // Flat
+  const flatCb=e.target.closest('[data-flat]');
+  if(flatCb){ e.stopPropagation(); const t=S.types.find(x=>x.id===flatCb.dataset.flat);
+    if(t){ t.flat=flatCb.checked; if(flatCb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); scheduleRender(); } return; }
+});
+document.getElementById('btl').addEventListener('input',e=>{
+  // Color picker
+  const clrInp=e.target.closest('[data-clr]');
+  if(clrInp){ e.stopPropagation(); const t=S.types.find(x=>x.id===clrInp.dataset.clr);
+    if(t){ t.color=clrInp.value; clrInp.closest('.bti-sw').style.background=clrInp.value;
+      S.boxes.forEach(b=>{if(b.sku===t.sku&&b.name===t.name) b.color=clrInp.value;}); scheduleRender(); } }
+});
 
 function flipType(id){
   const t=S.types.find(x=>x.id===id); if(!t) return;
