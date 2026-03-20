@@ -2086,12 +2086,18 @@ document.getElementById('addTypeBtn').addEventListener('click',()=>{
   const h=parseInt(document.getElementById('nH').value)||1;
   const color=document.getElementById('nClr').value;
   const weight=parseFloat(document.getElementById('nWt').value)||0;
-  const flat=document.getElementById('nFlat').checked;
+  const flatChk=document.getElementById('nFlat');
+  // Auto-detect flat: reorder dims so largest surface area = bottom (W×D)
+  // Two largest dims become W,D; smallest becomes H → flat=true
+  const dims=[w,d,h].sort((a,b)=>b-a);
+  const aw=dims[0], ad=dims[1], ah=dims[2];
+  const flat=true; // always flat after reorder — largest face is always bottom
+  flatChk.checked=true;
   const id='u'+S.nxtId++;
-  S.types.push({id,sku,name,w,d,h,color,orient:0,weight,flat});
+  S.types.push({id,sku,name,w:aw,d:ad,h:ah,color,orient:0,weight,flat});
   S.activeId=id; document.getElementById('nSku').value=''; document.getElementById('nName').value='';
   renderBTL(); updStats(); scheduleRender();
-  toast(`Added: ${sku?sku+' ':''}${name}  ${w}"×${d}"×${h}"`);
+  toast(`Added: ${sku?sku+' ':''}${name}  ${aw}"×${ad}"×${ah}" (flat)`);
 });
 document.getElementById('applyP').addEventListener('click',()=>{
   if(_abBusy) return;
