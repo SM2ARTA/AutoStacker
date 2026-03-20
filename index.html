@@ -309,20 +309,20 @@ const S={
   types:[
     {id:'t1',sku:'FNDSK-002',name:'Desk Large 5ft — Ctn 1',  w:64.5,d:30.75,h:2.25,  color:'#5B8DEF',orient:0,weight:0,flat:true},
     {id:'t2',sku:'FNDSK-002',name:'Desk Large 5ft — Ctn 2',  w:58.625,d:5,h:2.75,    color:'#3B6FD9',orient:0,weight:0,flat:true},
-    {id:'t3',sku:'FNDSK-002',name:'Desk Large 5ft — Ctn 3',  w:36.375,d:29.75,h:10.375,color:'#2855A6',orient:0,weight:0,flat:false},
+    {id:'t3',sku:'FNDSK-002',name:'Desk Large 5ft — Ctn 3',  w:36.375,d:29.75,h:10.375,color:'#2855A6',orient:0,weight:0,flat:true},
     {id:'t4',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 1',    w:48.5,d:24.625,h:2.25, color:'#D4850A',orient:0,weight:0,flat:true},
     {id:'t5',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 2',    w:43,d:5,h:2.75,        color:'#B06E00',orient:0,weight:0,flat:true},
-    {id:'t6',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 3',    w:36.25,d:24,h:10.5,    color:'#8A5500',orient:0,weight:0,flat:false},
-    {id:'t7',sku:'FNRCK-001',name:'Clothes Rack',             w:25,d:2.68,h:48.23,    color:'#7B9E3D',orient:0,weight:19.73,flat:false},
-    {id:'t8',sku:'CTBAR-003',name:'Barrier Sign',             w:12.01,d:17.13,h:14.76,color:'#C75D8A',orient:0,weight:18.74,flat:false},
+    {id:'t6',sku:'FNDSK-001',name:'Desk Std 4ft — Ctn 3',    w:36.25,d:24,h:10.5,    color:'#8A5500',orient:0,weight:0,flat:true},
+    {id:'t7',sku:'FNRCK-001',name:'Clothes Rack',             w:48.23,d:25,h:2.68,    color:'#7B9E3D',orient:0,weight:19.73,flat:true},
+    {id:'t8',sku:'CTBAR-003',name:'Barrier Sign',             w:17.13,d:14.76,h:12.01,color:'#C75D8A',orient:0,weight:18.74,flat:true},
     {id:'t9',sku:'CTBAR-001',name:'Barrier w/ Belt — Ctn 1',  w:34.45,d:13.97,h:6,    color:'#9E4B7A',orient:0,weight:34.39,flat:true},
-    {id:'t10',sku:'CTBAR-001',name:'Barrier w/ Belt — Ctn 2', w:13.97,d:13.97,h:11.22,color:'#7A3660',orient:0,weight:71.43,flat:false},
-    {id:'t11',sku:'FNCHR-002',name:'Plastic Folding Chair',   w:18.11,d:10.24,h:39.37,color:'#4A8B6E',orient:0,weight:60.01,flat:false},
-    {id:'t12',sku:'FNTBL-002',name:'Table Fold Large 6ft',    w:30.63,d:2.36,h:73.23, color:'#3A7CAA',orient:0,weight:34.08,flat:false},
-    {id:'t13',sku:'FNTBL-001',name:'Table Fold Std 4ft',      w:24.6,d:2.362,h:48.82, color:'#2D6088',orient:0,weight:20.41,flat:false},
-    {id:'t14',sku:'FNCHR-004',name:'Café Chair',              w:21.26,d:25.98,h:37.2, color:'#6B4E9B',orient:0,weight:45.19,flat:false},
-    {id:'t15',sku:'FNCHR-007',name:'Media Working Chair',     w:45.87,d:35.43,h:22.83,color:'#8B5E3C',orient:0,weight:119.16,flat:false},
-    {id:'t16',sku:'FNCHR-001',name:'Task Chair w/ Arms',      w:25.79,d:12.4,h:25.79, color:'#5C8B3C',orient:0,weight:38.36,flat:false},
+    {id:'t10',sku:'CTBAR-001',name:'Barrier w/ Belt — Ctn 2', w:13.97,d:13.97,h:11.22,color:'#7A3660',orient:0,weight:71.43,flat:true},
+    {id:'t11',sku:'FNCHR-002',name:'Plastic Folding Chair',   w:39.37,d:18.11,h:10.24,color:'#4A8B6E',orient:0,weight:60.01,flat:true},
+    {id:'t12',sku:'FNTBL-002',name:'Table Fold Large 6ft',    w:73.23,d:30.63,h:2.36, color:'#3A7CAA',orient:0,weight:34.08,flat:true},
+    {id:'t13',sku:'FNTBL-001',name:'Table Fold Std 4ft',      w:48.82,d:24.6,h:2.362, color:'#2D6088',orient:0,weight:20.41,flat:true},
+    {id:'t14',sku:'FNCHR-004',name:'Café Chair',              w:37.2,d:25.98,h:21.26, color:'#6B4E9B',orient:0,weight:45.19,flat:true},
+    {id:'t15',sku:'FNCHR-007',name:'Media Working Chair',     w:45.87,d:35.43,h:22.83,color:'#8B5E3C',orient:0,weight:119.16,flat:true},
+    {id:'t16',sku:'FNCHR-001',name:'Task Chair w/ Arms',      w:25.79,d:25.79,h:12.4, color:'#5C8B3C',orient:0,weight:38.36,flat:true},
   ],
   activeId:'t1',
   hGx:null, hGy:null,
@@ -1170,7 +1170,14 @@ document.getElementById('btl').addEventListener('change',e=>{
   // Flat
   const flatCb=e.target.closest('[data-flat]');
   if(flatCb){ e.stopPropagation(); const t=S.types.find(x=>x.id===flatCb.dataset.flat);
-    if(t){saveHist();t.flat=flatCb.checked; if(flatCb.checked&&t.orient>1) t.orient=0; renderBTL(); updStats(); scheduleRender(); } return; }
+    if(t){saveHist();t.flat=flatCb.checked;
+      if(flatCb.checked){
+        // Reorder dims: largest surface area = bottom (W×D)
+        const ds=[t.w,t.d,t.h].sort((a,b)=>b-a);
+        t.w=ds[0]; t.d=ds[1]; t.h=ds[2]; t.orient=0;
+      }
+      renderBTL(); updStats(); scheduleRender();
+    } return; }
 });
 document.getElementById('btl').addEventListener('input',e=>{
   // Color picker (debounce undo: only snapshot on first change per drag)
@@ -2265,7 +2272,11 @@ function _psbRestore(snap){
   S.palletW=pw; S.palletD=pd;
   document.getElementById('pw').value=S.palletW;
   document.getElementById('pd').value=S.palletD;
-  S.types=(snap.types||[]).map(t=>({id:t.id,sku:t.sku||'',name:t.name||'',w:t.w||12,d:t.d||12,h:t.h||12,color:t.color||'#888',orient:t.orient||0,weight:t.weight||0,flat:!!t.flat}));
+  S.types=(snap.types||[]).map(t=>{
+    // Auto-detect flat: reorder dims so largest face = bottom
+    const ds=[t.w||12,t.d||12,t.h||12].sort((a,b)=>b-a);
+    return {id:t.id,sku:t.sku||'',name:t.name||'',w:ds[0],d:ds[1],h:ds[2],color:t.color||'#888',orient:0,weight:t.weight||0,flat:true};
+  });
   S.activeId=snap.activeId||S.types[0]?.id||null;
   S.boxes=(snap.boxes||[]).map((b,i)=>({id:S.nxtId++,gx:b.gx||0,gy:b.gy||0,gz:b.gz||0,w:b.w||12,d:b.d||12,h:b.h||12,color:b.color||'#888',sku:b.sku||'',name:b.name||''}));
   S.past=[]; S.future=[]; updUR(); _isoDirty();
