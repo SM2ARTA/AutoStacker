@@ -2118,12 +2118,12 @@ document.getElementById('redoBtn').addEventListener('click',redo);
 document.getElementById('dupLayerBtn').addEventListener('click',()=>{
   if(_abBusy) return;
   if(!S.boxes.length){toast('No boxes to duplicate');return;}
-  // Find the topmost layer (highest gz)
+  // Find the topmost layer (highest gz) and place new layer above tallest box
   const topZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz),0);
   const topLayer=S.boxes.filter(b=>b.gz===topZ);
   if(!topLayer.length) return;
-  const layerH=topLayer[0].h;
-  const newZ=topZ+layerH;
+  const layerH=topLayer.reduce((m,b)=>Math.max(m,b.h),0);
+  const newZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0);
   const maxH=parseInt(document.getElementById('abMaxH').value)||96;
   if(newZ+layerH>maxH){toast(`Can't duplicate — would exceed max height ${maxH}"`);return;}
   saveHist();
@@ -2272,11 +2272,7 @@ function _psbRestore(snap){
   S.palletW=pw; S.palletD=pd;
   document.getElementById('pw').value=S.palletW;
   document.getElementById('pd').value=S.palletD;
-  S.types=(snap.types||[]).map(t=>{
-    // Auto-detect flat: reorder dims so largest face = bottom
-    const ds=[t.w||12,t.d||12,t.h||12].sort((a,b)=>b-a);
-    return {id:t.id,sku:t.sku||'',name:t.name||'',w:ds[0],d:ds[1],h:ds[2],color:t.color||'#888',orient:0,weight:t.weight||0,flat:true};
-  });
+  S.types=(snap.types||[]).map(t=>({id:t.id,sku:t.sku||'',name:t.name||'',w:t.w||12,d:t.d||12,h:t.h||12,color:t.color||'#888',orient:t.orient||0,weight:t.weight||0,flat:!!t.flat}));
   S.activeId=snap.activeId||S.types[0]?.id||null;
   S.boxes=(snap.boxes||[]).map((b,i)=>({id:S.nxtId++,gx:b.gx||0,gy:b.gy||0,gz:b.gz||0,w:b.w||12,d:b.d||12,h:b.h||12,color:b.color||'#888',sku:b.sku||'',name:b.name||''}));
   S.past=[]; S.future=[]; updUR(); _isoDirty();
