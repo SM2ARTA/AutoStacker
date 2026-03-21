@@ -962,10 +962,18 @@ function renderTop(){
     let w,d,col;
     if(S.mode==='place'){const t=atype();if(t){w=tw(t);d=td(t);col=t.color;}}
     else if(S.selId){const b=S.boxes.find(x=>x.id===S.selId);if(b){w=b.w;d=b.d;col=b.color;}}
-    if(w&&inBounds(S.hGx,S.hGy,w,d)){
-      tCtx.fillStyle=col; tCtx.globalAlpha=0.2; tCtx.fillRect(S.hGx*cs,S.hGy*cs,w*cs,d*cs);
-      tCtx.globalAlpha=1; tCtx.strokeStyle=col; tCtx.lineWidth=1.5;
-      tCtx.strokeRect(S.hGx*cs+.75,S.hGy*cs+.75,w*cs-1.5,d*cs-1.5);
+    if(w){
+      const hGz=gravZ(S.hGx,S.hGy,w,d);
+      const h=S.mode==='place'?(()=>{const t=atype();return t?th(t):0})():S.boxes.find(x=>x.id===S.selId)?.h||0;
+      const ok=inBounds(S.hGx,S.hGy,w,d)&&!hasOverlap(S.hGx,S.hGy,w,d,hGz,h);
+      // Clamp drawing to pallet bounds
+      const dx=Math.max(0,S.hGx)*cs, dy=Math.max(0,S.hGy)*cs;
+      const dx2=Math.min(S.hGx+w,W)*cs, dy2=Math.min(S.hGy+d,D)*cs;
+      if(dx2>dx&&dy2>dy){
+        tCtx.fillStyle=ok?col:'#e05858'; tCtx.globalAlpha=ok?0.2:0.15; tCtx.fillRect(dx,dy,dx2-dx,dy2-dy);
+        tCtx.globalAlpha=1; tCtx.strokeStyle=ok?col:'#e05858'; tCtx.lineWidth=1.5;
+        tCtx.strokeRect(dx+.75,dy+.75,dx2-dx-1.5,dy2-dy-1.5);
+      }
     }
   }
 }
