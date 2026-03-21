@@ -966,13 +966,15 @@ function renderTop(){
       const hGz=gravZ(S.hGx,S.hGy,w,d);
       const h=S.mode==='place'?(()=>{const t=atype();return t?th(t):0})():S.boxes.find(x=>x.id===S.selId)?.h||0;
       const ok=inBounds(S.hGx,S.hGy,w,d)&&!hasOverlap(S.hGx,S.hGy,w,d,hGz,h);
-      // Clamp drawing to pallet bounds
-      const dx=Math.max(0,S.hGx)*cs, dy=Math.max(0,S.hGy)*cs;
-      const dx2=Math.min(S.hGx+w,W)*cs, dy2=Math.min(S.hGy+d,D)*cs;
-      if(dx2>dx&&dy2>dy){
-        tCtx.fillStyle=ok?col:'#e05858'; tCtx.globalAlpha=ok?0.2:0.15; tCtx.fillRect(dx,dy,dx2-dx,dy2-dy);
-        tCtx.globalAlpha=1; tCtx.strokeStyle=ok?col:'#e05858'; tCtx.lineWidth=1.5;
-        tCtx.strokeRect(dx+.75,dy+.75,dx2-dx-1.5,dy2-dy-1.5);
+      if(ok){
+        // Only draw valid placements — ISO view shows red X for invalid
+        const dx=Math.max(0,S.hGx)*cs, dy=Math.max(0,S.hGy)*cs;
+        const dx2=Math.min(S.hGx+w,W)*cs, dy2=Math.min(S.hGy+d,D)*cs;
+        if(dx2>dx&&dy2>dy){
+          tCtx.fillStyle=col; tCtx.globalAlpha=0.2; tCtx.fillRect(dx,dy,dx2-dx,dy2-dy);
+          tCtx.globalAlpha=1; tCtx.strokeStyle=col; tCtx.lineWidth=1.5;
+          tCtx.strokeRect(dx+.75,dy+.75,dx2-dx-1.5,dy2-dy-1.5);
+        }
       }
     }
   }
