@@ -2128,22 +2128,20 @@ document.getElementById('redoBtn').addEventListener('click',redo);
 document.getElementById('dupLayerBtn').addEventListener('click',()=>{
   if(_abBusy) return;
   if(!S.boxes.length){toast('No boxes to duplicate');return;}
-  // Find the topmost layer (highest gz) and stack each box on its own footprint
+  // Find the topmost layer and place new layer at the highest point on the pallet
   const topZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz),0);
   const topLayer=S.boxes.filter(b=>b.gz===topZ);
   if(!topLayer.length) return;
+  const newZ=S.boxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0);
+  const tallest=topLayer.reduce((m,b)=>Math.max(m,b.h),0);
   const maxH=parseInt(document.getElementById('abMaxH').value)||96;
-  // Pre-compute each box's landing Z before adding any new boxes
-  const newBoxes=topLayer.map(b=>{
-    const gz=gravZ(b.gx,b.gy,b.w,b.d);
-    return {id:S.nxtId++,gx:b.gx,gy:b.gy,gz,w:b.w,d:b.d,h:b.h,color:b.color,sku:b.sku||'',name:b.name};
-  });
-  const peakH=newBoxes.reduce((m,b)=>Math.max(m,b.gz+b.h),0);
-  if(peakH>maxH){toast(`Can't duplicate — would exceed max height ${maxH}"`);return;}
+  if(newZ+tallest>maxH){toast(`Can't duplicate — would exceed max height ${maxH}"`);return;}
   saveHist();
-  newBoxes.forEach(b=>S.boxes.push(b));
+  topLayer.forEach(b=>{
+    S.boxes.push({id:S.nxtId++,gx:b.gx,gy:b.gy,gz:newZ,w:b.w,d:b.d,h:b.h,color:b.color,sku:b.sku||'',name:b.name});
+  });
   _isoDirty(); scheduleRender();
-  toast(`Duplicated ${topLayer.length} boxes`);
+  toast(`Duplicated ${topLayer.length} boxes → layer at ${newZ}"`);
 });
 document.getElementById('rmLayerBtn').addEventListener('click',()=>{
   if(_abBusy) return;
