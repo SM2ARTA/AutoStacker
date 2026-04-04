@@ -2157,7 +2157,7 @@ function _parsePaste(txt){
   // ── WEIGHT ──
   // "Weight: 8.4 lbs" / "Product Weight With Stand\n8.4 pounds" / "Item Weight 38 lb" / "8.4 lbs" on its own line / "Weight (lbs) 8.4"
   const wtPatterns=[
-    /(?:item|product|net|gross|shipping)?\s*weight(?:\s+\w+)*\s*(?:\([^)]*\))?\s*[:\-]?\s*\n?\s*([\d.]+)\s*(?:lb|lbs|pounds?|kg|oz)?/i,
+    /(?:item|product|net|gross|shipping)?\s*weight(?:[^\S\n]+\w+)*\s*(?:\([^)]*\))?\s*[:\-]?\s*\n?\s*([\d.]+)\s*(?:lb|lbs|pounds?|kg|oz)?/i,
     /(?:^|\n)\s*([\d.]+)\s*(?:lb|lbs|pounds)\s*$/im,
   ];
   for(const rx of wtPatterns){
@@ -2257,17 +2257,18 @@ document.getElementById('addTypeBtn').addEventListener('click',()=>{
   const color=document.getElementById('nClr').value;
   const weight=parseFloat(document.getElementById('nWt').value)||0;
   const flatChk=document.getElementById('nFlat');
-  // Auto-detect flat: reorder dims so largest surface area = bottom (W×D)
-  // Two largest dims become W,D; smallest becomes H → flat=true
-  const dims=[w,d,h].sort((a,b)=>b-a);
-  const aw=dims[0], ad=dims[1], ah=dims[2];
-  const flat=true; // always flat after reorder — largest face is always bottom
-  flatChk.checked=true;
+  const flat=flatChk.checked;
+  let aw=w, ad=d, ah=h;
+  if(flat){
+    // Reorder dims so largest surface area = bottom (W×D)
+    const dims=[w,d,h].sort((a,b)=>b-a);
+    aw=dims[0]; ad=dims[1]; ah=dims[2];
+  }
   const id='u'+S.nxtId++;
   S.types.push({id,sku,name,w:aw,d:ad,h:ah,color,orient:0,weight,flat});
   S.activeId=id; document.getElementById('nSku').value=''; document.getElementById('nName').value='';
   renderBTL(); updStats(); scheduleRender(); _psbSaveTypes();
-  toast(`Added: ${sku?sku+' ':''}${name}  ${aw}"×${ad}"×${ah}" (flat)`);
+  toast(`Added: ${sku?sku+' ':''}${name}  ${aw}"×${ad}"×${ah}"${flat?' (flat)':''}`);
 });
 document.getElementById('applyP').addEventListener('click',()=>{
   if(_abBusy) return;
