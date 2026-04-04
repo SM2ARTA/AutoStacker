@@ -207,7 +207,7 @@ kbd{background:var(--surf2);border:1px solid var(--bdr);border-radius:2px;paddin
 
     <!-- ADD BOX TYPE -->
     <div class="sec-compact" style="padding:8px 14px">
-      <div class="sec-title" style="margin-bottom:6px">Add Box Type</div>
+      <div class="sec-title" style="margin-bottom:6px">Add Box Type <button class="btn btn-ghost btn-sm" id="pasteDimBtn" style="padding:2px 8px;font-size:0.6rem;letter-spacing:1px">📋 Paste</button></div>
       <div class="inp-row" style="margin-bottom:5px">
         <input type="text" class="inp" id="nSku" placeholder="SKU" style="flex:1;min-width:60px;font-family:'JetBrains Mono',monospace;font-size:0.65rem">
         <input type="text" class="inp" id="nName" placeholder="Item name" style="flex:2;min-width:80px">
@@ -426,7 +426,7 @@ function hasOverlap(gx,gy,w,d,gz,h,excl){
   return false;
 }
 function _undoSnap(){return JSON.stringify({b:S.boxes,t:S.types,a:S.activeId});}
-function _undoRestore(s){const d=JSON.parse(s);S.boxes=d.b;S.types=d.t;S.activeId=d.a;_isoDirty();renderBTL();scheduleRender();}
+function _undoRestore(s){const d=JSON.parse(s);S.boxes=d.b;S.types=d.t;S.activeId=d.a;_isoDirty();renderBTL();scheduleRender();_psbSaveTypes();_psbAutoSave();}
 function saveHist(){ S.past.push(_undoSnap()); if(S.past.length>80) S.past.shift(); S.future=[]; updUR(); }
 function undo(){ if(_abBusy||!S.past.length) return; S.future.push(_undoSnap()); _undoRestore(S.past.pop()); updUR(); }
 function redo(){ if(_abBusy||!S.future.length) return; S.past.push(_undoSnap()); _undoRestore(S.future.pop()); updUR(); }
@@ -441,7 +441,7 @@ function placeBox(gx,gy){
   if(hasOverlap(gx,gy,w,d,gz,h)){ toast('Overlap'); return; }
   saveHist();
   S.boxes.push({id:S.nxtId++,gx,gy,gz,w,d,h,color:t.color,sku:t.sku||'',name:t.name});
-  _isoDirty(); scheduleRender();
+  _isoDirty(); scheduleRender(); _psbAutoSave();
 }
 
 function removeTop(gx,gy){
@@ -452,7 +452,7 @@ function removeTop(gx,gy){
   saveHist();
   S.boxes=S.boxes.filter(b=>b.id!==top.id);
   S.selId=null;
-  _isoDirty(); scheduleRender();
+  _isoDirty(); scheduleRender(); _psbAutoSave();
 }
 
 function pickUp(gx,gy){
@@ -573,7 +573,7 @@ let _abTickId=0;
 function _abTick(){ if(_abBusy){scheduleRender();_abTickId=requestAnimationFrame(_abTick);}else{_abTickId=0;} }
 function _abStart(label){ _abBusy=true; _abLabel=label; _abStartT=performance.now(); clearTimeout(_abTimer); _abTimer=setTimeout(()=>{if(_abBusy){_abDone();toast('Packing timed out');}},10000); if(!_abTickId)_abTickId=requestAnimationFrame(_abTick); }
 function _abBlock(){ if(_abBusy){toast(_abLabel+' in progress…');return true;} return false; }
-function _abDone(){ _abBusy=false; _abLabel=''; clearTimeout(_abTimer); if(_abTickId){cancelAnimationFrame(_abTickId);_abTickId=0;} scheduleRender(); }
+function _abDone(){ _abBusy=false; _abLabel=''; clearTimeout(_abTimer); if(_abTickId){cancelAnimationFrame(_abTickId);_abTickId=0;} scheduleRender(); _psbAutoSave(); }
 function _abApplyResult(r){
   if(r.ver!==_abVer){_abDone();return;} // stale result
   _abDone();
@@ -652,7 +652,7 @@ function dropAt(gx,gy){
   if(hasOverlap(gx,gy,b.w,b.d,gz,b.h,b.id)){ toast('Overlap'); return; }
   saveHist();
   b.gx=gx; b.gy=gy; b.gz=gz;
-  S.selId=null; _isoDirty(); updModeUI(); scheduleRender();
+  S.selId=null; _isoDirty(); updModeUI(); scheduleRender(); _psbAutoSave();
   toast('Moved ✓');
 }
 
@@ -1094,6 +1094,7 @@ function renderBTL(){
     S.types.forEach(t=>{const e=document.getElementById('abq-'+t.id);if(e)prevQtys[t.id]=e.value;});
     el.innerHTML=S.types.map(t=>_btlRowHTML(t,prevQtys[t.id]||0)).join('');
     _btlTypeIds=newIds;
+    _psbUpdateDots();
   } else {
     // Fast path — update existing rows in place (skip if dim-ed input is active)
     const editing=el.querySelector('.dim-ed');
@@ -1145,7 +1146,7 @@ document.getElementById('btl').addEventListener('click',e=>{
         S.boxes.forEach(b=>{
           if(b.sku===t.sku&&b.name===t.name){ b.w=tw(t); b.d=td(t); b.h=th(t); }
         });
-        _isoDirty(); scheduleRender();
+        _isoDirty(); scheduleRender(); _psbSaveTypes(); _psbAutoSave();
       }
       if(inp.parentNode) inp.remove(); // remove edit input so fast-path updates dims
       renderBTL(); updStats();
@@ -1164,7 +1165,7 @@ document.getElementById('btl').addEventListener('click',e=>{
     saveHist();
     S.types=S.types.filter(t=>t.id!==tid);
     if(S.activeId===tid) S.activeId=S.types[0]?.id||null;
-    renderBTL(); updStats(); scheduleRender();
+    renderBTL(); updStats(); scheduleRender(); _psbSaveTypes(); _psbAutoSave();
     return;
   }
   // AutoFill
@@ -1176,7 +1177,7 @@ document.getElementById('btl').addEventListener('click',e=>{
 document.getElementById('btl').addEventListener('change',e=>{
   // Weight
   const wtInp=e.target.closest('[data-wt]');
-  if(wtInp){ e.stopPropagation(); const t=S.types.find(x=>x.id===wtInp.dataset.wt); if(t){saveHist();t.weight=parseFloat(wtInp.value)||0;} return; }
+  if(wtInp){ e.stopPropagation(); const t=S.types.find(x=>x.id===wtInp.dataset.wt); if(t){saveHist();t.weight=parseFloat(wtInp.value)||0;_psbSaveTypes();} return; }
   // Flat
   const flatCb=e.target.closest('[data-flat]');
   if(flatCb){ e.stopPropagation(); const t=S.types.find(x=>x.id===flatCb.dataset.flat);
@@ -1186,7 +1187,7 @@ document.getElementById('btl').addEventListener('change',e=>{
         const ds=[t.w,t.d,t.h].sort((a,b)=>b-a);
         t.w=ds[0]; t.d=ds[1]; t.h=ds[2]; t.orient=0;
       }
-      renderBTL(); updStats(); scheduleRender();
+      renderBTL(); updStats(); scheduleRender(); _psbSaveTypes(); _psbAutoSave();
     } return; }
 });
 document.getElementById('btl').addEventListener('input',e=>{
@@ -1195,7 +1196,7 @@ document.getElementById('btl').addEventListener('input',e=>{
   if(clrInp){ e.stopPropagation(); const t=S.types.find(x=>x.id===clrInp.dataset.clr);
     if(t){ if(!clrInp._undone){saveHist();clrInp._undone=true;setTimeout(()=>{clrInp._undone=false;},500);}
       t.color=clrInp.value; clrInp.closest('.bti-sw').style.background=clrInp.value;
-      S.boxes.forEach(b=>{if(b.sku===t.sku&&b.name===t.name) b.color=clrInp.value;}); scheduleRender(); } }
+      S.boxes.forEach(b=>{if(b.sku===t.sku&&b.name===t.name) b.color=clrInp.value;}); scheduleRender(); _psbSaveTypes(); _psbAutoSave(); } }
 });
 
 function flipType(id){
@@ -1204,7 +1205,7 @@ function flipType(id){
   if(t.flat){
     // Flat only: just swap W↔D (orient 0↔1), keep H as height
     t.orient=(t.orient||0)===0?1:0;
-    renderBTL(); updStats(); scheduleRender();
+    renderBTL(); updStats(); scheduleRender(); _psbSaveTypes();
     toast(`Rotated → ${tw(t)}" × ${td(t)}" (flat)`);
     return;
   }
@@ -1213,7 +1214,7 @@ function flipType(id){
   for(let i=0;i<6;i++){const p=_PERMS[i];const k=dims[p[0]]+','+dims[p[1]]+','+dims[p[2]];if(!seen.has(k)){seen.add(k);unique.push(i);}}
   const cur=unique.indexOf(t.orient||0);
   t.orient=unique[(cur+1)%unique.length];
-  renderBTL(); updStats(); scheduleRender();
+  renderBTL(); updStats(); scheduleRender(); _psbSaveTypes();
   toast(`Rotated → ${tw(t)}" × ${td(t)}" × ${th(t)}"`);
 }
 
@@ -2095,6 +2096,158 @@ document.getElementById('modeBtn').addEventListener('click',()=>{
   S.mode=S.mode==='place'?'select':S.mode==='select'?'move':'place'; S.selId=null; updModeUI(); scheduleRender();
 });
 document.getElementById('flipBtn').addEventListener('click',()=>{ if(S.activeId) flipType(S.activeId); });
+// Parse SKU, name, and dimensions from pasted product spec text
+function _parsePaste(txt){
+  const norm=txt.replace(/\r\n/g,'\n').replace(/\r/g,'\n').replace(/\t/g,' ');
+  const result={sku:'',name:'',w:0,d:0,h:0,weight:0};
+  const dims={};
+  const _in=/(?:inch(?:es)?|in\.?|"|'')/i;
+
+  // ── DIMENSIONS ──
+
+  // P1: labeled lines — "Height\n20 inches" or "Height: 20 in" or "Height (in) 20"
+  const rxLabel=/(?:^|\n)\s*(height|width|depth|length|breadth)\s*(?:\([^)]*\))?\s*[:\-]?\s*\n?\s*([\d.]+)\s*(?:inch|inches|in\.?|"|''|cm|mm)?[^\n]*/gi;
+  let m;
+  while((m=rxLabel.exec(norm))!==null){
+    const val=parseFloat(m[2]);
+    if(val>0) dims[m[1].toLowerCase()]=val;
+  }
+
+  // P2: "32"W x 4.6"D x 20"H" or "32W × 4.6D × 20H"
+  if(!dims.width&&!dims.height){
+    const rxWDH=/([\d.]+)\s*(?:"|in\.?)?\s*["\s]?\s*([wW])\s*[x×,]\s*([\d.]+)\s*(?:"|in\.?)?\s*["\s]?\s*([dD])\s*[x×,]\s*([\d.]+)\s*(?:"|in\.?)?\s*["\s]?\s*([hH])/;
+    const md=norm.match(rxWDH);
+    if(md){ dims.width=parseFloat(md[1]); dims.depth=parseFloat(md[3]); dims.height=parseFloat(md[5]); }
+  }
+
+  // P3: "H: 20 x W: 32 x D: 4.6" (any label:value x label:value pattern)
+  if(!dims.width&&!dims.height){
+    const rxLV=/([hHwWdDlL])\s*[:\-]\s*([\d.]+)/g;
+    let lv;
+    while((lv=rxLV.exec(norm))!==null){
+      const k=lv[1].toLowerCase(), v=parseFloat(lv[2]);
+      if(v>0){ if(k==='w') dims.width=v; else if(k==='d') dims.depth=v; else if(k==='h') dims.height=v; else if(k==='l') dims.length=v; }
+    }
+  }
+
+  // P4: "Product Dimensions: 32 x 4.6 x 20 inches" or "Dimensions 32x4.6x20"
+  if(!dims.width&&!dims.height){
+    const rxPD=/(?:product\s+)?dim(?:ension)?s?\s*[:\-]?\s*([\d.]+)\s*(?:"|in\.?)?\s*[x×]\s*([\d.]+)\s*(?:"|in\.?)?\s*[x×]\s*([\d.]+)/i;
+    const md=norm.match(rxPD);
+    if(md){ dims.width=parseFloat(md[1]); dims.depth=parseFloat(md[2]); dims.height=parseFloat(md[3]); }
+  }
+
+  // P5: bare "20 x 32 x 4.6" or '20" x 32" x 4.6"'
+  if(!dims.width&&!dims.height){
+    const rxBare=/([\d.]+)\s*(?:"|in\.?|inch(?:es)?)?\s*[x×]\s*([\d.]+)\s*(?:"|in\.?|inch(?:es)?)?\s*[x×]\s*([\d.]+)/i;
+    const md=norm.match(rxBare);
+    if(md){ dims.width=parseFloat(md[1]); dims.depth=parseFloat(md[2]); dims.height=parseFloat(md[3]); }
+  }
+
+  // P6: two-value patterns — "32 x 20" (W x H, assume D=1)
+  if(!dims.width&&!dims.height){
+    const rxTwo=/([\d.]+)\s*(?:"|in\.?)?\s*[x×]\s*([\d.]+)\s*(?:"|in\.?)?/i;
+    const md=norm.match(rxTwo);
+    if(md){ dims.width=parseFloat(md[1]); dims.height=parseFloat(md[2]); }
+  }
+
+  if(!dims.width&&!dims.height&&!dims.depth&&!dims.length) return null;
+  result.w=dims.width||dims.length||0; result.d=dims.depth||0; result.h=dims.height||0;
+
+  // ── WEIGHT ──
+  // "Weight: 8.4 lbs" / "Product Weight With Stand\n8.4 pounds" / "Item Weight 38 lb" / "8.4 lbs" on its own line / "Weight (lbs) 8.4"
+  const wtPatterns=[
+    /(?:item|product|net|gross|shipping)?\s*weight(?:\s+\w+)*\s*(?:\([^)]*\))?\s*[:\-]?\s*\n?\s*([\d.]+)\s*(?:lb|lbs|pounds?|kg|oz)?/i,
+    /(?:^|\n)\s*([\d.]+)\s*(?:lb|lbs|pounds)\s*$/im,
+  ];
+  for(const rx of wtPatterns){
+    const wm=norm.match(rx);
+    if(wm){ result.weight=parseFloat(wm[1])||0; break; }
+  }
+
+  // ── SKU ──
+  // Common patterns: FGTEC-003-001, ACR-001, ABC123, AB-12-34
+  const skuPatterns=[
+    /\b([A-Z]{2,}[-.]?\d{2,}(?:[-.]?\d+)*)\b/i,
+    /\b([A-Z]{2,}\d{2,}[A-Z0-9]*)\b/,
+    /\b(\d{2,}[-][A-Z]{2,}[-]?\d*)\b/i,
+  ];
+  for(const rx of skuPatterns){
+    const sm=norm.match(rx);
+    if(sm){ result.sku=sm[1].toUpperCase(); break; }
+  }
+
+  // ── NAME ──
+  const lines=norm.split('\n').map(l=>l.trim()).filter(l=>l);
+  const dimWords=/^(height|width|depth|length|breadth|box\s*dim|product\s*dim|dim|dimensions|specifications|specs|features|details|package|shipping)/i;
+  const numOnly=/^\s*[\d.]+\s*(?:inch|inches|in\.?|"|lb|lbs|pounds?|kg|cm|mm|oz|x|×)?\s*$/i;
+  const weightLine=/weight/i;
+  for(const line of lines){
+    if(dimWords.test(line)) continue;
+    if(numOnly.test(line)) continue;
+    if(weightLine.test(line)) continue;
+    if(/^\s*[x×]\s*$/i.test(line)) continue;
+    // Line with SKU — extract name part after SKU
+    if(result.sku&&line.toUpperCase().includes(result.sku)){
+      const after=line.replace(new RegExp(result.sku.replace(/[-.]/g,'\\$&'),'i'),'').trim();
+      if(after) result.name=after;
+      continue;
+    }
+    if(!result.name&&line.length>1) result.name=line;
+  }
+
+  return result;
+}
+
+document.getElementById('pasteDimBtn').addEventListener('click',()=>{
+  const box=_makeModal(`
+    <div class="modal-title">Paste Product Specs</div>
+    <div style="font-size:0.62rem;color:var(--muted);margin-bottom:8px">Paste product specs from any website — SKU, name, dimensions, and weight will be detected automatically.</div>
+    <textarea id="pasteDimText" class="inp" rows="7" style="resize:vertical;font-size:0.72rem;line-height:1.5;font-family:'Barlow',sans-serif" placeholder="FGTEC-003-001 TV 32&quot;- 32A4NR\nBox Dimension\nHeight\n20 inches\nWidth\n32 inches\nDepth\n4.6 inches\nWeight\n8.4 lbs"></textarea>
+    <div id="pasteDimPreview" style="margin-top:8px;font-size:0.72rem;color:var(--muted);min-height:20px"></div>
+    <div class="modal-actions" style="margin-top:10px">
+      <button class="modal-btn modal-btn-ghost" id="pasteDimCancel">Cancel</button>
+      <button class="modal-btn modal-btn-primary" id="pasteDimApply" disabled>Apply</button>
+    </div>
+  `,{sticky:true});
+  const ta=box.querySelector('#pasteDimText');
+  const preview=box.querySelector('#pasteDimPreview');
+  const applyBtn=box.querySelector('#pasteDimApply');
+  let parsed=null;
+
+  function update(){
+    parsed=_parsePaste(ta.value);
+    if(parsed){
+      let html='';
+      if(parsed.sku) html+='<span style="font-family:JetBrains Mono,monospace;color:var(--acc);font-size:0.65rem">'+parsed.sku+'</span> ';
+      if(parsed.name) html+='<span style="color:var(--txt)">'+parsed.name+'</span><br>';
+      html+='<span style="color:var(--txt);font-weight:600">W: '+parsed.w+'" × D: '+parsed.d+'" × H: '+parsed.h+'"</span>';
+      if(parsed.weight) html+=' <span style="color:var(--muted)">'+parsed.weight+' lb</span>';
+      preview.innerHTML=html;
+      applyBtn.disabled=false;
+    } else {
+      preview.textContent=ta.value.trim()?'No dimensions detected':'';
+      applyBtn.disabled=true;
+    }
+  }
+  ta.addEventListener('input',update);
+  ta.addEventListener('paste',()=>setTimeout(update,0));
+
+  applyBtn.addEventListener('click',()=>{
+    if(!parsed) return;
+    document.getElementById('nW').value=parsed.w;
+    document.getElementById('nD').value=parsed.d;
+    document.getElementById('nH').value=parsed.h;
+    if(parsed.sku) document.getElementById('nSku').value=parsed.sku;
+    if(parsed.name) document.getElementById('nName').value=parsed.name;
+    if(parsed.weight) document.getElementById('nWt').value=parsed.weight;
+    _closeModal();
+    toast(`Parsed: ${parsed.sku?parsed.sku+' ':''}${parsed.w}" × ${parsed.d}" × ${parsed.h}"`);
+  });
+  box.querySelector('#pasteDimCancel').addEventListener('click',()=>_closeModal());
+  ta.focus();
+});
+
 document.getElementById('addTypeBtn').addEventListener('click',()=>{
   const sku=document.getElementById('nSku').value.trim();
   const name=document.getElementById('nName').value.trim()||'Box';
@@ -2113,14 +2266,14 @@ document.getElementById('addTypeBtn').addEventListener('click',()=>{
   const id='u'+S.nxtId++;
   S.types.push({id,sku,name,w:aw,d:ad,h:ah,color,orient:0,weight,flat});
   S.activeId=id; document.getElementById('nSku').value=''; document.getElementById('nName').value='';
-  renderBTL(); updStats(); scheduleRender();
+  renderBTL(); updStats(); scheduleRender(); _psbSaveTypes();
   toast(`Added: ${sku?sku+' ':''}${name}  ${aw}"×${ad}"×${ah}" (flat)`);
 });
 document.getElementById('applyP').addEventListener('click',()=>{
   if(_abBusy) return;
   S.palletW=parseInt(document.getElementById('pw').value)||48;
   S.palletD=parseInt(document.getElementById('pd').value)||40;
-  S.boxes=[]; S.past=[]; S.future=[]; updUR(); _isoDirty(); render(); // immediate: must show empty pallet
+  S.boxes=[]; S.past=[]; S.future=[]; updUR(); _isoDirty(); render(); _psbAutoSave(); // immediate: must show empty pallet
   toast(`Pallet: ${S.palletW}"×${S.palletD}"`);
 });
 document.getElementById('undoBtn').addEventListener('click',undo);
@@ -2140,7 +2293,7 @@ document.getElementById('dupLayerBtn').addEventListener('click',()=>{
   topLayer.forEach(b=>{
     S.boxes.push({id:S.nxtId++,gx:b.gx,gy:b.gy,gz:newZ,w:b.w,d:b.d,h:b.h,color:b.color,sku:b.sku||'',name:b.name});
   });
-  _isoDirty(); scheduleRender();
+  _isoDirty(); scheduleRender(); _psbAutoSave();
   toast(`Duplicated ${topLayer.length} boxes → layer at ${newZ}"`);
 });
 document.getElementById('rmLayerBtn').addEventListener('click',()=>{
@@ -2151,10 +2304,10 @@ document.getElementById('rmLayerBtn').addEventListener('click',()=>{
   if(!topLayer.length) return;
   saveHist();
   S.boxes=S.boxes.filter(b=>b.gz!==topZ);
-  _isoDirty(); scheduleRender();
+  _isoDirty(); scheduleRender(); _psbAutoSave();
   toast(`Removed ${topLayer.length} boxes from top layer`);
 });
-document.getElementById('clearBtn').addEventListener('click',()=>{ if(_abBusy||!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; _isoDirty(); render(); toast('Cleared'); }); // immediate: must show empty pallet
+document.getElementById('clearBtn').addEventListener('click',()=>{ if(_abBusy||!S.boxes.length) return; if(!confirm(`Clear all ${S.boxes.length} boxes from pallet?`)) return; saveHist(); S.boxes=[]; _isoDirty(); render(); _psbAutoSave(); toast('Cleared'); }); // immediate: must show empty pallet
 document.getElementById('exportBtn').addEventListener('click',previewSVG);
 
 // Explode play/pause animation
@@ -2222,9 +2375,9 @@ window.addEventListener('keydown',e=>{
     if(S.mode==='select'&&S.selId!==null){
       const b=S.boxes.find(x=>x.id===S.selId);
       saveHist(); S.boxes=S.boxes.filter(x=>x.id!==S.selId); S.selId=null;
-      _isoDirty(); updModeUI(); scheduleRender(); toast(b?`Removed ${b.sku||b.name}`:'Removed');
+      _isoDirty(); updModeUI(); scheduleRender(); _psbAutoSave(); toast(b?`Removed ${b.sku||b.name}`:'Removed');
     } else if(S.hGx!==null) removeTop(S.hGx,S.hGy);
-    else { saveHist(); S.boxes.pop(); _isoDirty(); scheduleRender(); toast('Removed last box'); }
+    else { saveHist(); S.boxes.pop(); _isoDirty(); scheduleRender(); _psbAutoSave(); toast('Removed last box'); }
   }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){ e.preventDefault(); undo(); }
   if((e.ctrlKey||e.metaKey)&&(e.shiftKey&&e.key==='z'||e.key==='y')){ e.preventDefault(); redo(); }
@@ -2232,9 +2385,6 @@ window.addEventListener('keydown',e=>{
 
 let toastT;
 function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),1900); }
-
-new ResizeObserver(()=>scheduleRender()).observe(cvWrap);
-renderBTL(); updModeUI(); render();
 
 // ─────────────────────────────────────────────────────
 // SUPABASE — save / load pallets
@@ -2246,6 +2396,105 @@ try{SB=supabase.createClient(SB_URL,SB_KEY)}catch(e){console.warn('Supabase init
 
 // Index key — stores list of saved pallet names/ids
 const PSB_INDEX='psb-index';
+const PSB_AUTO='psb-autosave';
+
+// ── Types persistence (independent from pallet saves) ──
+const PSB_TYPES='psb-types';
+let _psbSavedTypes=new Set(); // type hashes confirmed in Supabase
+let _psbTypesTimer=null;
+
+function _psbTypeHash(t){return JSON.stringify([t.sku,t.name,t.w,t.d,t.h,t.color,t.orient,t.weight,t.flat]);}
+
+function _psbTypesPayload(){
+  return S.types.map(t=>({id:t.id,sku:t.sku||'',name:t.name,w:t.w,d:t.d,h:t.h,color:t.color,orient:t.orient||0,weight:t.weight||0,flat:!!t.flat}));
+}
+
+function _psbMarkTypesSaved(types){
+  _psbSavedTypes=new Set((types||[]).map(t=>t.id+'|'+_psbTypeHash(t)));
+  _psbUpdateDots();
+}
+
+function _psbIsSaved(t){return _psbSavedTypes.has(t.id+'|'+_psbTypeHash(t));}
+
+function _psbUpdateDots(){
+  document.querySelectorAll('.bti').forEach(row=>{
+    const t=S.types.find(x=>x.id===row.dataset.id); if(!t) return;
+    let dot=row.querySelector('.psb-dot');
+    const saved=_psbIsSaved(t);
+    if(!dot){
+      dot=document.createElement('span');
+      dot.className='psb-dot';
+      dot.style.cssText='width:6px;height:6px;border-radius:50%;flex-shrink:0;transition:background .3s';
+      row.insertBefore(dot,row.firstChild);
+    }
+    dot.style.background=saved?'var(--green)':'var(--red)';
+    dot.title=saved?'Synced':'Not saved';
+  });
+}
+
+// Save types to Supabase (debounced 800ms — fast but coalesces rapid edits)
+function _psbSaveTypes(){
+  clearTimeout(_psbTypesTimer);
+  _psbUpdateDots(); // show red immediately
+  _psbTypesTimer=setTimeout(async()=>{
+    if(!SB) return;
+    try{
+      const types=_psbTypesPayload();
+      await SB.from('shared_state').upsert({id:PSB_TYPES,value:types,updated_at:new Date().toISOString()});
+      _psbMarkTypesSaved(types);
+    }catch(e){console.warn('Types save failed:',e);}
+  },800);
+}
+
+// Load types from Supabase on startup
+async function _psbLoadTypes(){
+  if(!SB) return;
+  try{
+    const{data}=await SB.from('shared_state').select('value').eq('id',PSB_TYPES).maybeSingle();
+    if(!data) return;
+    let types=data.value;
+    while(typeof types==='string') types=JSON.parse(types);
+    if(!Array.isArray(types)||!types.length) return;
+    S.types=types.map(t=>({id:t.id,sku:t.sku||'',name:t.name||'',w:t.w||12,d:t.d||12,h:t.h||12,color:t.color||'#888',orient:t.orient||0,weight:t.weight||0,flat:!!t.flat}));
+    S.activeId=S.types[0]?.id||null;
+    _psbMarkTypesSaved(types);
+    renderBTL();
+  }catch(e){console.warn('Types load failed:',e);}
+}
+_psbLoadTypes();
+
+// Auto-save full pallet state (boxes + layout)
+let _psbAutoTimer=null;
+function _psbAutoSave(){
+  clearTimeout(_psbAutoTimer);
+  _psbAutoTimer=setTimeout(async()=>{
+    if(!SB) return;
+    try{
+      const snap=_psbSnapshot();
+      await SB.from('shared_state').upsert({id:PSB_AUTO,value:snap,updated_at:new Date().toISOString()});
+    }catch(e){console.warn('Auto-save failed:',e);}
+  },1500);
+}
+
+new ResizeObserver(()=>scheduleRender()).observe(cvWrap);
+renderBTL(); updModeUI(); render();
+
+// Flush pending saves on page close
+window.addEventListener('beforeunload',()=>{
+  if(!SB) return;
+  const hdr={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'resolution=merge-duplicates'};
+  const url=SB_URL+'/rest/v1/shared_state?on_conflict=id';
+  try{
+    if(_psbTypesTimer){
+      clearTimeout(_psbTypesTimer);
+      fetch(url,{method:'POST',keepalive:true,headers:hdr,body:JSON.stringify({id:PSB_TYPES,value:JSON.stringify(_psbTypesPayload()),updated_at:new Date().toISOString()})});
+    }
+    if(_psbAutoTimer){
+      clearTimeout(_psbAutoTimer);
+      fetch(url,{method:'POST',keepalive:true,headers:hdr,body:JSON.stringify({id:PSB_AUTO,value:JSON.stringify(_psbSnapshot()),updated_at:new Date().toISOString()})});
+    }
+  }catch(e){}
+});
 
 async function _psbLoadIndex(){
   if(!SB) return [];
@@ -2293,7 +2542,7 @@ function _psbRestore(snap){
 
 function _closeModal(){ document.querySelectorAll('.modal-bg').forEach(m=>m.remove()); }
 
-function _makeModal(html){
+function _makeModal(html,opts){
   _closeModal();
   const bg=document.createElement('div'); bg.className='modal-bg';
   bg.setAttribute('role','dialog'); bg.setAttribute('aria-modal','true');
@@ -2301,7 +2550,7 @@ function _makeModal(html){
   box.innerHTML=html;
   box.addEventListener('click',e=>e.stopPropagation());
   bg.appendChild(box);
-  bg.addEventListener('click',()=>_closeModal());
+  if(!opts||!opts.sticky) bg.addEventListener('click',()=>_closeModal());
   // Focus trap
   bg.addEventListener('keydown',e=>{
     if(e.key==='Escape'){_closeModal();return;}
@@ -2323,10 +2572,12 @@ function _makeModal(html){
 async function showSaveModal(){
   if(_abBlock()) return;
   const idx=await _psbLoadIndex();
+  const _at=S.types.find(t=>t.id===S.activeId)||S.types[0];
+  const _sug=_at?(_at.sku?_at.sku+' ':'')+ _at.name:'';
   const box=_makeModal(`
     <div class="modal-title">Save Pallet</div>
     <div class="modal-row">
-      <input type="text" class="inp" id="saveName" placeholder="e.g. Stage A — Chairs" style="flex:1">
+      <input type="text" class="inp" id="saveName" placeholder="e.g. Stage A — Chairs" value="${_sug.replace(/"/g,'&quot;')}" style="flex:1">
       <button class="modal-btn modal-btn-primary" id="saveConfirm">Save</button>
     </div>
     ${idx.length?'<div style="font-size:0.62rem;color:var(--muted);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">Or overwrite existing:</div><div class="modal-list" id="saveList">'+
@@ -2344,6 +2595,7 @@ async function showSaveModal(){
       const newIdx=idx.filter(e=>e.id!==id);
       newIdx.unshift({id,name:name.trim(),date:new Date().toLocaleDateString()});
       await _psbSaveIndex(newIdx);
+      _psbMarkTypesSaved(snap.types||[]);
       _closeModal(); toast(`Saved: ${name.trim()}`);
     }catch(err){toast('Save error');console.error(err);}
   }
@@ -2387,7 +2639,7 @@ async function showLoadModal(){
         if(data){
           let snap=data.value;
           while(typeof snap==='string') snap=JSON.parse(snap);
-          _psbRestore(snap);_closeModal();toast('Loaded!');
+          _psbRestore(snap);_psbSaveTypes();_closeModal();toast('Loaded!');
         } else toast('Not found');
       }catch(err){toast('Load error: '+err.message);console.error(err);}
     });
